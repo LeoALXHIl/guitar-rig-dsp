@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1e1f23"/>
+  <!-- knob (o motivo visual do rig) -->
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#2b2d33" stroke-width="26"/>
+  <path d="M256 256 m-150 0 a150 150 0 1 1 260 -130" fill="none" stroke="#e0a24a" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="104" fill="#40434b"/>
+  <circle cx="256" cy="256" r="104" fill="url(#g)"/>
+  <line x1="256" y1="256" x2="342" y2="170" stroke="#e0a24a" stroke-width="20" stroke-linecap="round"/>
+  <defs>
+    <radialGradient id="g" cx="42%" cy="38%" r="70%">
+      <stop offset="0" stop-color="#6a6d76"/>
+      <stop offset="1" stop-color="#212227"/>
+    </radialGradient>
+  </defs>
+</svg>

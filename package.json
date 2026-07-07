@@ -1,0 +1,10 @@
+{
+  "name": "guitar-rig-dsp",
+  "version": "0.1.0",
+  "description": "Simulador de rack de guitarra no navegador — motor de modelagem de amps do zero (Web Audio + AudioWorklet). Fase 1: MVP de áudio.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}

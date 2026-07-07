@@ -1,0 +1,14 @@
+{
+  "name": "guitar-rig-dsp",
+  "short_name": "RigDSP",
+  "description": "Simulador de rack de guitarra — modelagem de amp no navegador (EVH/Marshall)",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#131315",
+  "theme_color": "#131315",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

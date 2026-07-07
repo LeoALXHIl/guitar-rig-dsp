@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>guitar-rig-dsp</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<meta name="theme-color" content="#0e0e10" />
+<style>
+  :root, :root[data-theme="onyx"] { --bg:#0d0d0f; --bg2:#141416; --panel:#17181b; --edge:#26272d;
+          --txt:#eceae4; --dim:#8b8a83; --accent:#e0a24a; --led:#5fd47a; --metal1:#3a3d44; --metal2:#1b1c20; }
+  :root[data-theme="vintage"] { --bg:#17110a; --bg2:#1f1810; --panel:#241d12; --edge:#3e331f;
+          --txt:#f2e8d4; --dim:#b0a082; --accent:#e0ad48; --led:#e6c85a; --metal1:#5a4a30; --metal2:#241d12; }
+  :root[data-theme="blue"] { --bg:#090f16; --bg2:#0f1620; --panel:#131d29; --edge:#22384c;
+          --txt:#e6eef7; --dim:#7f97ad; --accent:#48a8e6; --led:#5ad8e6; --metal1:#2e455c; --metal2:#111c27; }
+  :root[data-theme="crimson"] { --bg:#120c0d; --bg2:#181012; --panel:#1c1417; --edge:#3a262d;
+          --txt:#f2e0e3; --dim:#ad838b; --accent:#e64a5a; --led:#ff6a52; --metal1:#4a2e34; --metal2:#1a1215; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;
+         display:flex; flex-direction:column; min-height:100vh; }
+  button, select, input { font:inherit; }
+  button { cursor:pointer; }
+
+  /* ---------- top bar ---------- */
+  .top { display:flex; align-items:center; gap:14px; padding:12px 20px; background:var(--bg2);
+         border-bottom:1px solid var(--edge); flex-wrap:wrap; }
+  .brand { font-size:15px; font-weight:800; letter-spacing:.5px; display:flex; align-items:center; gap:8px; }
+  .brand small { font-weight:500; color:var(--dim); font-size:11px; border:1px solid var(--edge); padding:1px 7px; border-radius:20px; }
+  #power { background:transparent; color:var(--txt); border:1px solid var(--edge); padding:8px 16px; border-radius:8px; font-weight:600; }
+  #power.on { background:var(--accent); color:#151007; border-color:var(--accent); box-shadow:0 0 14px color-mix(in srgb,var(--accent) 45%,transparent); }
+  #status { color:var(--dim); font-size:12px; flex:1; min-width:120px; }
+  .spacer { flex:1; }
+  .ghost { background:transparent; color:var(--dim); border:1px solid var(--edge); padding:6px 11px; border-radius:8px; font-size:12px; }
+  .ghost:hover { color:var(--txt); border-color:var(--dim); }
+  .ghost.set, .ghost.on { border-color:var(--accent); color:var(--accent); }
+  .ghost:disabled { opacity:.4; cursor:default; }
+  .sel { background:var(--panel); color:var(--txt); border:1px solid var(--edge); border-radius:8px; padding:7px 9px; }
+  .lab { font-size:10px; letter-spacing:.6px; text-transform:uppercase; color:var(--dim); }
+
+  /* segunda linha de utilidades */
+  .util { display:flex; align-items:center; gap:14px; padding:8px 20px; background:var(--bg2);
+          border-bottom:1px solid var(--edge); flex-wrap:wrap; }
+  .util .grp { display:flex; align-items:center; gap:6px; }
+  .util .grp + .grp { padding-left:14px; border-left:1px solid var(--edge); }
+  #midiMap, #midiStatus { font-size:11px; color:var(--dim); }
+
+  /* ---------- chain strip ---------- */
+  .chain { display:flex; align-items:center; gap:4px; padding:14px 20px; overflow-x:auto;
+           background:linear-gradient(180deg,var(--bg2),var(--bg)); border-bottom:1px solid var(--edge); }
+  .chip { display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--edge);
+          color:var(--dim); padding:9px 15px; border-radius:10px; white-space:nowrap; font-weight:600; transition:.15s; }
+  .chip:hover { color:var(--txt); border-color:var(--dim); }
+  .chip.active { color:var(--txt); border-color:var(--accent); background:color-mix(in srgb,var(--accent) 12%,var(--panel));
+                 box-shadow:0 0 0 1px var(--accent), 0 4px 16px rgba(0,0,0,.4); }
+  .chip .dot { width:8px; height:8px; border-radius:50%; background:var(--edge); flex:none; }
+  .chip.lit .dot { background:var(--led); box-shadow:0 0 7px var(--led); }
+  .chip.tool { font-weight:500; }
+  .link { color:var(--edge); font-size:14px; padding:0 1px; user-select:none; }
+  .chdiv { width:1px; align-self:stretch; background:var(--edge); margin:2px 8px; }
+
+  /* ---------- stage (módulo em foco) ---------- */
+  .stage { flex:1; padding:30px 20px; display:flex; justify-content:center; align-items:flex-start; }
+  .mod { display:none; width:100%; max-width:860px; animation:fade .25s ease; }
+  .mod.active { display:block; }
+  @keyframes fade { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  .card { background:var(--panel); border:1px solid var(--edge); border-radius:18px; padding:26px 30px;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 20px 50px rgba(0,0,0,.45); }
+  .card > header { display:flex; align-items:baseline; gap:12px; margin-bottom:22px; padding:0; background:none; border:none; box-shadow:none; }
+  .card h2 { font-size:22px; margin:0; font-weight:800; letter-spacing:.3px; }
+  .card .sub { color:var(--dim); font-size:12px; text-transform:uppercase; letter-spacing:1px; }
+  .knobs { display:flex; flex-wrap:wrap; gap:8px 22px; justify-content:center; }
+  .knobs.big label.knob.has-knob .knob-canvas { transform:scale(1.35); margin:10px 0 16px; }
+
+  /* knobs */
+  label.knob { display:block; margin:10px 0; }
+  label.knob .row { display:flex; justify-content:space-between; font-size:12px; color:var(--dim); }
+  label.knob b { color:var(--txt); font-weight:600; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  label.knob.has-knob { display:flex; flex-direction:column; align-items:center; text-align:center; margin:8px 0; }
+  label.knob.has-knob .row { flex-direction:column; gap:0; line-height:1.2; margin-bottom:2px; }
+  label.knob.has-knob .row span { font-size:11px; text-transform:uppercase; letter-spacing:.6px; }
+  .knob-canvas { display:block; cursor:ns-resize; touch-action:none; margin-top:2px; }
+  .knob-canvas:hover { filter:brightness(1.14); }
+
+  /* toggle LED */
+  .sw { display:inline-flex; align-items:center; gap:8px; font-size:13px; margin:6px 14px 6px 0; }
+  .sw input[type=checkbox] { appearance:none; width:34px; height:18px; border-radius:10px; position:relative;
+          background:#000; border:1px solid var(--edge); cursor:pointer; transition:.15s; flex:none; }
+  .sw input[type=checkbox]::after { content:''; position:absolute; top:1px; left:1px; width:14px; height:14px; border-radius:50%;
+          background:var(--dim); transition:.15s; }
+  .sw input[type=checkbox]:checked { background:color-mix(in srgb,var(--accent) 35%,#000); border-color:var(--accent); }
+  .sw input[type=checkbox]:checked::after { left:17px; background:var(--accent); box-shadow:0 0 6px var(--accent); }
+
+  .row2 { display:flex; gap:18px; flex-wrap:wrap; }
+  .row2 > * { flex:1; min-width:120px; }
+  .field { margin:10px 0; }
+  .field .lab { display:block; margin-bottom:4px; }
+  .meter { height:9px; background:#000; border-radius:6px; overflow:hidden; border:1px solid var(--edge); }
+  .meter > i { display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--led),#e0d24a 70%,#e05a4a); transition:width .05s; }
+  .clip { width:11px; height:11px; border-radius:50%; background:#2a1818; border:1px solid var(--edge); display:inline-block; cursor:pointer; vertical-align:middle; }
+  .clip.on { background:#ff4230; box-shadow:0 0 8px #ff4230; }
+  .btn { background:var(--panel); color:var(--txt); border:1px solid var(--edge); padding:9px 14px; border-radius:9px; }
+  .btn:hover { border-color:var(--dim); }
+  .btn.on { background:var(--accent); color:#151007; border-color:var(--accent); }
+  .btn.rec { border-color:#ff4230; color:#ff6a52; }
+  .mini { background:transparent; color:var(--dim); border:1px solid var(--edge); padding:6px 10px; border-radius:8px; font-size:12px; }
+  .mini.set, .mini.on { border-color:var(--accent); color:var(--accent); }
+  .mini:disabled { opacity:.4; cursor:default; }
+  .btn-file { background:transparent; color:var(--dim); border:1px solid var(--edge); padding:6px 11px; border-radius:8px; font-size:12px; cursor:pointer; }
+  .hint { color:var(--dim); font-size:12px; margin-top:8px; }
+  .hint code { color:var(--accent); }
+
+  /* preset manager overlay */
+  .manager { display:none; padding:14px 20px; background:var(--bg2); border-bottom:1px solid var(--edge); }
+  .manager.open { display:block; }
+  .mgr-row { display:flex; align-items:center; gap:10px; padding:6px 8px; border-bottom:1px solid var(--edge); }
+  .mgr-row:hover { background:var(--panel); }
+  .mgr-name { flex:1; cursor:pointer; } .mgr-name:hover { color:var(--accent); }
+  .mgr-tags i { font-style:normal; font-size:11px; color:var(--accent); border:1px solid var(--edge); border-radius:10px; padding:1px 7px; margin-left:4px; }
+  .mgr-fx { font-size:11px; color:var(--dim); }
+  .star { background:none; border:none; color:var(--dim); font-size:16px; cursor:pointer; } .star.on { color:var(--accent); }
+
+  /* looper / rhythm / etc helpers */
+  .loopbar { height:8px; background:#000; border:1px solid var(--edge); border-radius:5px; overflow:hidden; margin:10px 0; }
+  .loopbar > i { display:block; height:100%; width:0%; background:var(--led); }
+  .logview { font:11px/1.5 ui-monospace,Consolas,monospace; color:var(--dim); background:#000; border:1px solid var(--edge);
+             border-radius:8px; padding:8px; height:130px; overflow:auto; white-space:pre-wrap; }
+  .perf-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px 14px; font-size:12px; margin-bottom:12px; }
+  .perf-grid b { color:var(--txt); display:block; font-size:18px; }
+
+  /* tuner */
+  .tuner-note { font-size:30px; font-weight:800; line-height:1; }
+  .tuner-cents { font-size:11px; color:var(--dim); height:14px; }
+  .tuner-scale { position:relative; height:20px; margin-top:6px; background:#000; border:1px solid var(--edge); border-radius:6px; }
+  .tuner-scale::before { content:''; position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--led); }
+  .tuner-needle { position:absolute; top:2px; bottom:2px; width:3px; border-radius:2px; background:var(--accent); transform:translateX(-50%); transition:left .08s, background .1s; }
+
+  /* ---------- dock fixo ---------- */
+  .dock { display:grid; grid-template-columns:220px 90px 220px 1fr; gap:20px; align-items:center;
+          padding:12px 20px; background:var(--bg2); border-top:1px solid var(--edge); }
+  .dock .blk { min-width:0; }
+  .dock canvas#scope { width:100%; height:70px; background:#000; border:1px solid var(--edge); border-radius:8px; display:block; }
+  @media (max-width:820px){ .dock { grid-template-columns:1fr 1fr; } .dock .scopewrap { grid-column:1/-1; } }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.5.0</small></span>
+  <button id="power">⏻ Ligar</button>
+  <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
+  <span class="spacer"></span>
+  <select id="presetList" class="sel" style="min-width:190px"></select>
+  <button id="presetSave" class="ghost">💾</button>
+  <button id="presetExport" class="ghost">⭳</button>
+  <label class="btn-file">⭱<input type="file" id="presetImport" accept=".json,application/json" hidden /></label>
+  <button id="presetDel" class="ghost">🗑</button>
+  <button id="mgrToggle" class="ghost">⧉ Presets</button>
+  <span class="lab">Skin</span>
+  <select id="themeSel" class="sel">
+    <option value="onyx">Onyx</option><option value="vintage">Vintage</option>
+    <option value="blue">Blueface</option><option value="crimson">Crimson</option>
+  </select>
+</div>
+
+<div class="util">
+  <div class="grp"><button id="undoBtn" class="ghost" title="Ctrl+Z" disabled>↶</button><button id="redoBtn" class="ghost" title="Ctrl+Y" disabled>↷</button></div>
+  <div class="grp"><span class="lab">A/B</span><button id="abSetA" class="ghost">Set A</button><button id="abSetB" class="ghost">Set B</button><button id="abToggle" class="ghost">A/B: A</button></div>
+  <div class="grp"><span class="lab">Snap</span><button class="ghost snap">1</button><button class="ghost snap">2</button><button class="ghost snap">3</button><button class="ghost snap">4</button><label class="sw" style="margin:0 0 0 4px"><input type="checkbox" id="snapEdit" /> editar</label></div>
+  <div class="grp"><span class="lab">MIDI</span><button id="midiEnable" class="ghost">Ativar</button><label class="sw" style="margin:0"><input type="checkbox" id="midiLearn" /> Learn</label><button id="midiClear" class="ghost">Limpar</button><span id="midiStatus">desativado</span><span id="midiMap"></span></div>
+  <span class="spacer"></span>
+  <button id="swapOrder" class="ghost">⇄ Ordem OD/Amp</button>
+</div>
+
+<div class="manager" id="manager">
+  <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px">
+    <input id="mgrSearch" class="sel" style="max-width:320px" placeholder="🔎 buscar por nome ou tag…" />
+    <label class="sw" style="margin:0"><input type="checkbox" id="mgrFav" /> só favoritos ★</label>
+  </div>
+  <div id="mgrList"></div>
+</div>
+
+<!-- TIRA DE CADEIA -->
+<nav class="chain" id="chain">
+  <button class="chip" data-mod="gate" data-sw="gateBypass" data-inv="1"><span class="dot"></span>Gate</button>
+  <span class="link">▸</span>
+  <button class="chip" data-mod="comp" data-sw="compBypass" data-inv="1"><span class="dot"></span>Comp</button>
+  <span class="link">▸</span>
+  <button class="chip" id="chipOD" data-mod="od" data-sw="odBypass" data-inv="1"><span class="dot"></span>Drive</button>
+  <span class="link">▸</span>
+  <button class="chip" id="chipAMP" data-mod="amp" data-sw="ampPower" data-inv="0"><span class="dot"></span>Amp</button>
+  <span class="link">▸</span>
+  <button class="chip" data-mod="eq" data-sw="eqBypass" data-inv="1"><span class="dot"></span>EQ</button>
+  <span class="link">▸</span>
+  <button class="chip" data-mod="cab" data-sw="cabOn" data-inv="0"><span class="dot"></span>Cab</button>
+  <span class="chdiv"></span>
+  <button class="chip tool" data-mod="looper">Looper</button>
+  <button class="chip tool" data-mod="rhythm">Ritmo</button>
+  <button class="chip tool" data-mod="audio">Áudio</button>
+  <button class="chip tool" data-mod="system">Sistema</button>
+</nav>
+
+<!-- PALCO -->
+<main class="stage">
+
+  <!-- GATE -->
+  <section class="mod" data-mod="gate"><div class="card">
+    <header><h2>Noise Gate</h2><span class="sub">expander</span></header>
+    <div class="knobs">
+      <label class="knob"><div class="row"><span>Threshold</span><b id="gateThreshVal">-55 dB</b></div><input type="range" id="gateThresh" min="-90" max="0" step="1" value="-55" /></label>
+      <label class="knob"><div class="row"><span>Decay</span><b id="gateRelVal">120 ms</b></div><input type="range" id="gateRel" min="10" max="600" step="5" value="120" /></label>
+    </div>
+    <div class="field"><span class="lab">Redução</span><div class="meter"><i id="gateGr" style="background:linear-gradient(90deg,#e05a4a,#e0a24a)"></i></div></div>
+    <label class="sw"><input type="checkbox" id="gateBypass" /> Bypass</label>
+  </div></section>
+
+  <!-- COMP -->
+  <section class="mod" data-mod="comp"><div class="card">
+    <header><h2>Compressor</h2><span class="sub">feed-forward</span></header>
+    <div class="knobs big">
+      <label class="knob"><div class="row"><span>Threshold</span><b id="compThreshVal">-24 dB</b></div><input type="range" id="compThresh" min="-60" max="0" step="1" value="-24" /></label>
+      <label class="knob"><div class="row"><span>Ratio</span><b id="compRatioVal">4.0:1</b></div><input type="range" id="compRatio" min="1" max="20" step="0.5" value="4" /></label>
+      <label class="knob"><div class="row"><span>Makeup</span><b id="compMakeupVal">+0 dB</b></div><input type="range" id="compMakeup" min="0" max="24" step="1" value="0" /></label>
+      <label class="knob"><div class="row"><span>Attack</span><b id="compAttVal">8 ms</b></div><input type="range" id="compAtt" min="0.1" max="100" step="0.1" value="8" /></label>
+      <label class="knob"><div class="row"><span>Release</span><b id="compRelVal">120 ms</b></div><input type="range" id="compRel" min="10" max="1000" step="5" value="120" /></label>
+    </div>
+    <div class="field"><span class="lab">Redução (GR)</span><div class="meter"><i id="compGr" style="background:linear-gradient(90deg,#4a9de0,#e0a24a)"></i></div></div>
+    <label class="sw"><input type="checkbox" id="compBypass" checked /> Bypass</label>
+  </div></section>
+
+  <!-- OVERDRIVE -->
+  <section class="mod" data-mod="od"><div class="card">
+    <header><h2>Overdrive</h2><span class="sub">tube screamer · OS 4×</span></header>
+    <div class="knobs big">
+      <label class="knob"><div class="row"><span>Drive</span><b id="driveVal">8</b></div><input type="range" id="drive" min="1" max="100" step="1" value="8" /></label>
+      <label class="knob"><div class="row"><span>Tone</span><b id="toneVal">0.60</b></div><input type="range" id="tone" min="0" max="1" step="0.01" value="0.6" /></label>
+      <label class="knob"><div class="row"><span>Level</span><b id="levelVal">0.50</b></div><input type="range" id="level" min="0" max="1" step="0.01" value="0.5" /></label>
+    </div>
+    <label class="sw"><input type="checkbox" id="odBypass" /> Bypass</label>
+  </div></section>
+
+  <!-- AMP (hero) -->
+  <section class="mod active" data-mod="amp"><div class="card">
+    <header><h2 id="ampModelName">800-style · 2203</h2><span class="sub">cabeçote · OS 4×</span></header>
+    <select id="ampModel" class="sel" style="width:100%;margin-bottom:18px">
+      <option value="0" data-tag="800-style · 2203" selected>800-style (JCM800 2203 · EL34)</option>
+      <option value="1" data-tag="5150-style · Lead">5150-style Lead (EVH 5150III · 6L6)</option>
+    </select>
+    <div class="knobs big">
+      <label class="knob"><div class="row"><span>Gain</span><b id="ampGainVal">0.60</b></div><input type="range" id="ampGain" min="0" max="1" step="0.01" value="0.6" /></label>
+      <label class="knob"><div class="row"><span>Bass</span><b id="bassVal">0.50</b></div><input type="range" id="bass" min="0" max="1" step="0.01" value="0.5" /></label>
+      <label class="knob"><div class="row"><span>Mid</span><b id="midVal">0.50</b></div><input type="range" id="mid" min="0" max="1" step="0.01" value="0.5" /></label>
+      <label class="knob"><div class="row"><span>Treble</span><b id="trebleVal">0.60</b></div><input type="range" id="treble" min="0" max="1" step="0.01" value="0.6" /></label>
+      <label class="knob"><div class="row"><span>Presence</span><b id="presenceVal">0.40</b></div><input type="range" id="presence" min="0" max="1" step="0.01" value="0.4" /></label>
+      <label class="knob"><div class="row"><span>Depth</span><b id="depthVal">0.40</b></div><input type="range" id="depth" min="0" max="1" step="0.01" value="0.4" /></label>
+      <label class="knob"><div class="row"><span>Master</span><b id="ampMasterVal">0.50</b></div><input type="range" id="ampMaster" min="0" max="1" step="0.01" value="0.5" /></label>
+    </div>
+    <div style="margin-top:16px"><label class="sw"><input type="checkbox" id="bright" checked /> Bright</label><label class="sw"><input type="checkbox" id="ampPower" checked /> Power</label></div>
+  </div></section>
+
+  <!-- EQ -->
+  <section class="mod" data-mod="eq"><div class="card">
+    <header><h2>EQ Paramétrico</h2><span class="sub">pós-cab</span></header>
+    <div class="knobs big">
+      <label class="knob"><div class="row"><span>Low</span><b id="eqLowVal">+0.0 dB</b></div><input type="range" id="eqLow" min="-18" max="18" step="0.5" value="0" /></label>
+      <label class="knob"><div class="row"><span>Mid</span><b id="eqMidVal">+0.0 dB</b></div><input type="range" id="eqMid" min="-18" max="18" step="0.5" value="0" /></label>
+      <label class="knob"><div class="row"><span>High</span><b id="eqHighVal">+0.0 dB</b></div><input type="range" id="eqHigh" min="-18" max="18" step="0.5" value="0" /></label>
+      <label class="knob"><div class="row"><span>Mid Freq</span><b id="eqMidFreqVal">800 Hz</b></div><input type="range" id="eqMidFreq" min="200" max="5000" step="10" value="800" /></label>
+      <label class="knob"><div class="row"><span>Mid Q</span><b id="eqMidQVal">Q 1.0</b></div><input type="range" id="eqMidQ" min="0.2" max="8" step="0.1" value="1" /></label>
+      <label class="knob"><div class="row"><span>HP</span><b id="eqHPVal">20 Hz</b></div><input type="range" id="eqHP" min="20" max="400" step="1" value="20" /></label>
+      <label class="knob"><div class="row"><span>LP</span><b id="eqLPVal">20000 Hz</b></div><input type="range" id="eqLP" min="2000" max="20000" step="100" value="20000" /></label>
+    </div>
+    <label class="sw"><input type="checkbox" id="eqBypass" checked /> Bypass</label>
+  </div></section>
+
+  <!-- CAB -->
+  <section class="mod" data-mod="cab"><div class="card">
+    <header><h2>Cabinet + Mic</h2><span class="sub" id="irName">IR sintético</span></header>
+    <div class="row2">
+      <div class="field"><span class="lab">Caixa</span><select id="cabType" class="sel" style="width:100%"><option value="4x12" selected>4x12</option><option value="2x12">2x12</option><option value="1x12">1x12</option></select></div>
+      <div class="field"><span class="lab">Falante</span><select id="speaker" class="sel" style="width:100%"><option value="v30" selected>V30-style</option><option value="green">Greenback-style</option></select></div>
+      <div class="field"><span class="lab">Mic A</span><select id="mic" class="sel" style="width:100%"><option value="sm57" selected>SM57</option><option value="md421">MD421</option><option value="r121">R121</option></select></div>
+      <div class="field"><span class="lab">Mic B</span><select id="micB" class="sel" style="width:100%"><option value="none" selected>— (só A)</option><option value="sm57">SM57</option><option value="md421">MD421</option><option value="r121">R121</option></select></div>
+    </div>
+    <div class="knobs big" style="margin-top:8px">
+      <label class="knob"><div class="row"><span>Blend A/B</span><b id="blendVal">50/50</b></div><input type="range" id="blend" min="0" max="1" step="0.01" value="0.5" /></label>
+      <label class="knob"><div class="row"><span>Spread</span><b id="spreadVal">40%</b></div><input type="range" id="spread" min="0" max="1" step="0.01" value="0.4" /></label>
+      <label class="knob"><div class="row"><span>Eixo</span><b id="axisVal">on-axis</b></div><input type="range" id="axis" min="0" max="1" step="0.01" value="0.25" /></label>
+      <label class="knob"><div class="row"><span>Distância</span><b id="distanceVal">perto</b></div><input type="range" id="distance" min="0" max="1" step="0.01" value="0.3" /></label>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap">
+      <label class="sw"><input type="checkbox" id="cabOn" checked /> Ativo</label>
+      <label class="btn-file">Carregar .wav<input type="file" id="irFile" accept=".wav,audio/wav" hidden /></label>
+      <button id="irClear" class="mini">Sintético</button>
+    </div>
+  </div></section>
+
+  <!-- LOOPER -->
+  <section class="mod" data-mod="looper"><div class="card">
+    <header><h2>Looper</h2><span class="sub" id="loopLen"></span></header>
+    <div style="font-size:20px;font-weight:700;margin-bottom:12px" id="loopState">vazio</div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap">
+      <button id="loopRec" class="btn rec">● Rec / Loop / Overdub</button>
+      <button id="loopStop" class="btn">❚❚ Stop</button>
+      <button id="loopClear" class="btn">✕ Clear</button>
+    </div>
+    <div class="loopbar"><i id="loopBar"></i></div>
+    <label class="knob" style="max-width:220px"><div class="row"><span>Nível do loop</span><b id="loopLevelVal">1.00</b></div><input type="range" id="loopLevel" min="0" max="1.5" step="0.01" value="1" /></label>
+  </div></section>
+
+  <!-- RITMO -->
+  <section class="mod" data-mod="rhythm"><div class="card">
+    <header><h2>Ritmo</h2><span class="sub">metrônomo + drums</span></header>
+    <div style="display:flex; gap:14px; align-items:center; margin-bottom:14px">
+      <button id="transportBtn" class="btn">▶ Iniciar</button>
+      <label class="knob" style="flex:1;max-width:260px;margin:0"><div class="row"><span>Tempo</span><b id="bpmVal">120 BPM</b></div><input type="range" id="bpm" min="40" max="240" step="1" value="120" /></label>
+    </div>
+    <label class="sw"><input type="checkbox" id="metroOn" /> Metrônomo</label>
+    <label class="sw"><input type="checkbox" id="drumsOn" /> Bateria</label>
+    <div class="row2" style="margin-top:8px">
+      <div class="field"><span class="lab">Padrão</span><select id="drumPattern" class="sel" style="width:100%"><option value="rock" selected>Rock</option><option value="metal">Metal (double bass)</option><option value="funk">Funk</option></select></div>
+      <label class="knob"><div class="row"><span>Volume ritmo</span><b id="drumVolVal">0.60</b></div><input type="range" id="drumVol" min="0" max="1" step="0.01" value="0.6" /></label>
+    </div>
+  </div></section>
+
+  <!-- ÁUDIO -->
+  <section class="mod" data-mod="audio"><div class="card">
+    <header><h2>Áudio / Latência</h2><span class="sub" id="audioNote" style="color:var(--accent)"></span></header>
+    <div class="field"><span class="lab">Dispositivo de entrada</span><select id="inputDevice" class="sel" style="width:100%"><option value="">Padrão do sistema</option></select></div>
+    <div class="row2">
+      <div class="field"><span class="lab">Sample rate</span><select id="srSel" class="sel" style="width:100%"><option value="0" selected>Padrão</option><option value="44100">44100</option><option value="48000">48000</option><option value="96000">96000</option></select></div>
+      <div class="field"><span class="lab">Latência (hint)</span><select id="latSel" class="sel" style="width:100%"><option value="interactive" selected>Interactive (mín.)</option><option value="balanced">Balanced</option><option value="playback">Playback (estável)</option></select></div>
+    </div>
+    <div class="hint">Round-trip: <b id="audioLatency" style="color:var(--txt)">n/d</b> · SR ativo: <b id="audioSr" style="color:var(--txt)">n/d</b> — trocas se aplicam ao reiniciar o rig.</div>
+  </div></section>
+
+  <!-- SISTEMA -->
+  <section class="mod" data-mod="system"><div class="card">
+    <header><h2>Sistema</h2><span class="sub">perf + log</span></header>
+    <div class="perf-grid">
+      <span>FPS UI<b id="perfFps">—</b></span>
+      <span>Frame<b id="perfMs">—</b></span>
+      <span>Dropouts<b id="perfGlitch">0</b></span>
+    </div>
+    <div class="logview" id="logView"></div>
+    <button id="logExport" class="mini" style="margin-top:10px">⭳ Exportar log</button>
+    <p class="hint">⚠️ Use <b>fone</b> (sem fone, a caixa realimenta o mic). Cadeia: gate → comp → (OD⇄amp) → EQ → cab dual-mic, distorção com <code>oversampling 4×</code>.</p>
+  </div></section>
+
+</main>
+
+<!-- DOCK FIXO -->
+<footer class="dock">
+  <div class="blk">
+    <div style="display:flex;justify-content:space-between"><span class="lab">In</span><span id="inClip" class="clip" title="clip — clique p/ resetar"></span></div>
+    <div class="meter" style="margin:4px 0 8px"><i id="inMeter"></i></div>
+    <label class="sw" style="font-size:12px"><input type="checkbox" id="testOn" /> Tom de teste</label>
+    <div id="inputInfo" style="font-size:11px;color:var(--dim)">Guitarra via interface</div>
+  </div>
+  <div class="blk" style="text-align:center">
+    <span class="lab">Afinador</span>
+    <div class="tuner-note" id="tunerNote">—</div>
+    <div class="tuner-cents" id="tunerCents"></div>
+    <div class="tuner-scale"><div class="tuner-needle" id="tunerNeedle" style="left:50%"></div></div>
+  </div>
+  <div class="blk">
+    <label class="knob has-knob" style="margin:0"><div class="row"><span>Master</span><b id="masterVal">0.80</b></div><input type="range" id="master" min="0" max="1" step="0.01" value="0.8" /></label>
+    <div style="display:flex;justify-content:space-between;margin-top:4px"><span class="lab">Out</span><span id="outClip" class="clip" title="clip — clique p/ resetar"></span></div>
+    <div class="meter" style="margin-top:4px"><i id="outMeter"></i></div>
+  </div>
+  <div class="blk scopewrap">
+    <span class="lab">Espectro + Osciloscópio</span>
+    <canvas id="scope" width="1200" height="140"></canvas>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
