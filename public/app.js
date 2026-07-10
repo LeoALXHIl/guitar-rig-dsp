@@ -195,6 +195,7 @@ function stop() {
   $('status').textContent = 'Rig desligado.';
   ['inMeter', 'outMeter', 'gateGr', 'compGr'].forEach((id) => $(id).style.width = '0%');
   mb.in = mb.out = -100; drawVU(-60);
+  if (bgCtx) bgCtx.clearRect(0, 0, bgW, bgH);
   Log.info('rig desligado');
 }
 
@@ -300,36 +301,62 @@ function uiLoop() {
       if (db >= -0.2) $(clipId).classList.add('on');
     }
     // glow reativo: os chips acesos pulsam conforme o nível de saída
-    document.documentElement.style.setProperty('--sig', Math.max(0, Math.min(1, (mb.out + 60) / 60)).toFixed(3));
-    drawScope();
+    const level = Math.max(0, Math.min(1, (mb.out + 60) / 60));
+    document.documentElement.style.setProperty('--sig', level.toFixed(3));
+    const freq = new Uint8Array(outAnalyser.frequencyBinCount); outAnalyser.getByteFrequencyData(freq);
+    drawScope(freq);
     drawVU(mb.out);
+    drawBg(level, freq);
     perf.tick();
   }
   requestAnimationFrame(uiLoop);
 }
-function drawScope() {
+let barH = null, barCap = null;
+function drawScope(freq) {
   if (!scopeCtx) return;
-  const c = scopeCtx, W = c.canvas.width, H = c.canvas.height;
+  const c = scopeCtx, W = c.canvas.width, H = c.canvas.height, nf = freq.length;
   c.clearRect(0, 0, W, H);
-  // espectro (barras)
-  const nf = outAnalyser.frequencyBinCount;
-  const freq = new Uint8Array(nf); outAnalyser.getByteFrequencyData(freq);
-  const bars = 96;
+  const bars = 72;
+  if (!barH || barH.length !== bars) { barH = new Float32Array(bars); barCap = new Float32Array(bars); }
+  const grad = c.createLinearGradient(0, H, 0, 0);
+  grad.addColorStop(0, cssVar('--led')); grad.addColorStop(0.55, cssVar('--accent')); grad.addColorStop(1, '#e0503a');
+  const w = W / bars - 1;
   for (let b = 0; b < bars; b++) {
-    const idx = Math.floor(Math.pow(b / bars, 2) * nf); // escala quase-log
-    const v = freq[idx] / 255;
-    const h = v * H;
-    c.fillStyle = `hsl(${30 + v * 20}, 80%, ${40 + v * 25}%)`;
-    c.fillRect(b / bars * W, H - h, W / bars - 1, h);
+    const idx = Math.floor(Math.pow(b / bars, 2) * nf), v = freq[idx] / 255, target = v * H;
+    barH[b] = target > barH[b] ? target : barH[b] * 0.86;               // barra: sobe rápido, cai suave
+    if (barH[b] > barCap[b]) barCap[b] = barH[b]; else barCap[b] -= H * 0.006; // peak cap descendo
+    const x = b / bars * W;
+    c.fillStyle = grad; c.fillRect(x, H - barH[b], w, barH[b]);
+    c.fillStyle = cssVar('--txt'); c.fillRect(x, H - Math.max(barCap[b], 1.5), w, 1.5);
   }
-  // osciloscópio (onda)
+  // osciloscópio com glow (aditivo)
+  c.save(); c.globalCompositeOperation = 'lighter'; c.shadowColor = cssVar('--accent'); c.shadowBlur = 6;
   const wave = new Uint8Array(outAnalyser.fftSize); outAnalyser.getByteTimeDomainData(wave);
-  c.strokeStyle = 'rgba(224,162,74,0.9)'; c.lineWidth = 1.5; c.beginPath();
-  for (let i = 0; i < wave.length; i += 4) {
-    const x = i / wave.length * W, y = (wave[i] / 255) * H;
-    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+  c.strokeStyle = cssVar('--accent'); c.lineWidth = 1.6; c.beginPath();
+  for (let i = 0; i < wave.length; i += 4) { const x = i / wave.length * W, y = (wave[i] / 255) * H; i === 0 ? c.moveTo(x, y) : c.lineTo(x, y); }
+  c.stroke(); c.restore();
+}
+
+// ---- fundo reativo ao áudio (glow que respira + espectro silhueta) ----
+let bgCtx = null, bgW = 0, bgH = 0;
+function resizeBg() { const c = $('bg'); if (!c) return; bgW = c.width = window.innerWidth; bgH = c.height = window.innerHeight; }
+function initBg() { const c = $('bg'); if (!c) return; resizeBg(); bgCtx = c.getContext('2d'); }
+window.addEventListener('resize', resizeBg);
+function drawBg(level, freq) {
+  if (!bgCtx) return; const ctx = bgCtx, W = bgW, H = bgH;
+  ctx.clearRect(0, 0, W, H);
+  // glow radial que respira com o nível
+  ctx.save(); ctx.globalAlpha = 0.06 + level * 0.18;
+  const rg = ctx.createRadialGradient(W / 2, H * 0.34, 20, W / 2, H * 0.34, Math.max(W, H) * 0.55);
+  rg.addColorStop(0, cssVar('--accent')); rg.addColorStop(1, 'transparent');
+  ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H); ctx.restore();
+  // espectro gigante (silhueta na base)
+  if (freq) {
+    const bars = 64; ctx.save(); ctx.globalAlpha = 0.10; ctx.fillStyle = cssVar('--accent');
+    ctx.beginPath(); ctx.moveTo(0, H);
+    for (let b = 0; b < bars; b++) { const idx = Math.floor(Math.pow(b / bars, 2) * freq.length), v = freq[idx] / 255; ctx.lineTo(b / (bars - 1) * W, H - v * H * 0.45); }
+    ctx.lineTo(W, H); ctx.closePath(); ctx.fill(); ctx.restore();
   }
-  c.stroke();
 }
 
 // ===========================================================================
@@ -892,7 +919,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', ()
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.6.1';
+const APP_VERSION = 'v0.6.2';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -915,6 +942,7 @@ renderMidiMap();
 loadUserPresets();
 initKnobs();
 initVU();
+initBg();
 selectModule('amp');   // amp em foco por padrão
 syncChainDots();
 snapshotForUndo(); // estado inicial no histórico

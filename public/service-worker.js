@@ -6,7 +6,7 @@
  * pro cache. O nome do cache carrega a VERSÃO — ao subir uma versão nova, o cache velho
  * é apagado no 'activate' e a UI é avisada da atualização.
  */
-const VERSION = 'v0.6.1';
+const VERSION = 'v0.6.2';
 const CACHE = 'grd-' + VERSION;
 const ASSETS = [
   './', './index.html', './app.js', './manifest.webmanifest', './icon.svg',
