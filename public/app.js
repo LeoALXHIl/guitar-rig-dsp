@@ -160,7 +160,7 @@ async function start() {
   $('audioSr').textContent = ctx.sampleRate + ' Hz';
   Log.info(`rig ligado @ ${ctx.sampleRate}Hz, latência ~${latMs.toFixed(1)}ms, hint=${audioCfg.latencyHint}`);
   perf.reset();
-  meterLoop();
+  // uiLoop já está rodando desde o load (anima knobs mesmo com rig desligado)
 }
 
 async function connectGuitar() {
@@ -279,17 +279,31 @@ function meterStats(analyser) {
   let peak = 0; for (let i = 0; i < buf.length; i++) { const a = Math.abs(buf[i]); if (a > peak) peak = a; }
   return 20 * Math.log10(peak + 1e-9);
 }
-function meterLoop() {
-  if (!running) return;
-  for (const [an, mId, key, clipId] of [[inAnalyser, 'inMeter', 'in', 'inClip'], [outAnalyser, 'outMeter', 'out', 'outClip']]) {
-    const db = meterStats(an);
-    hold[key] = Math.max(db, hold[key] - 0.5); // decai devagar
-    $(mId).style.width = dbToPct(db) + '%';
-    if (db >= -0.2) $(clipId).classList.add('on');
+// estado de balística dos meters (VU-like: sobe na hora, desce devagar; + peak-hold)
+const mb = { in: -100, out: -100, inH: -100, outH: -100, inHT: 0, outHT: 0 };
+function animateKnobs() { for (const k of allKnobs) k.step(); }
+
+// loop de UI SEMPRE rodando (anima knobs mesmo com o rig desligado); o resto só quando ligado
+function uiLoop() {
+  animateKnobs();
+  if (running) {
+    const now = performance.now();
+    for (const [an, mId, hId, key, clipId] of [[inAnalyser, 'inMeter', 'inHold', 'in', 'inClip'], [outAnalyser, 'outMeter', 'outHold', 'out', 'outClip']]) {
+      const db = meterStats(an);
+      mb[key] = db > mb[key] ? db : mb[key] - 0.9;              // balística: attack instantâneo, release ~54 dB/s
+      $(mId).style.width = dbToPct(mb[key]) + '%';
+      const hk = key + 'H', ht = key + 'HT';
+      if (db > mb[hk]) { mb[hk] = db; mb[ht] = now; }           // peak-hold: sobe e segura
+      else if (now - mb[ht] > 900) mb[hk] = Math.max(db, mb[hk] - 0.5);
+      const he = $(hId); if (he) he.style.left = dbToPct(mb[hk]) + '%';
+      if (db >= -0.2) $(clipId).classList.add('on');
+    }
+    // glow reativo: os chips acesos pulsam conforme o nível de saída
+    document.documentElement.style.setProperty('--sig', Math.max(0, Math.min(1, (mb.out + 60) / 60)).toFixed(3));
+    drawScope();
+    perf.tick();
   }
-  drawScope();
-  perf.tick();
-  requestAnimationFrame(meterLoop);
+  requestAnimationFrame(uiLoop);
 }
 function drawScope() {
   if (!scopeCtx) return;
@@ -469,6 +483,7 @@ function refreshLabels() {
   $('blendVal').textContent = Math.round((1 - cabSettings.blend) * 100) + '/' + Math.round(cabSettings.blend * 100);
   $('spreadVal').textContent = Math.round(cabSettings.spread * 100) + '%';
   if (typeof syncChainDots === 'function') syncChainDots();
+  if (typeof syncKnobs === 'function') syncKnobs();
 }
 
 // --- presets ---
@@ -739,6 +754,7 @@ class Knob {
     this.input = input; this.label = label;
     this.min = +input.min; this.max = +input.max; this.step = +input.step || 0.01;
     this.default = +input.value;
+    this.target = this.default; this.disp = this.default; this._self = false; // p/ animação spring
     const size = 54, dpr = Math.min(2, window.devicePixelRatio || 1);
     const c = document.createElement('canvas');
     c.className = 'knob-canvas'; c.dataset.for = input.id;
@@ -754,19 +770,25 @@ class Knob {
     c.addEventListener('pointerup', () => { drag = false; });
     c.addEventListener('dblclick', () => this.set(this.default));
     c.addEventListener('wheel', (e) => { e.preventDefault(); const d = (e.deltaY < 0 ? 1 : -1) * this.step * (e.shiftKey ? 1 : 5); this.set(+input.value + d); }, { passive: false });
-    input.addEventListener('input', () => this.draw());
+    // mudança externa (preset/MIDI/undo) → anima em spring; mudança própria (drag) → instantânea
+    input.addEventListener('input', () => { this.target = +this.input.value; if (this._self) { this.disp = this.target; this._self = false; this.draw(); } });
     this.draw();
   }
   set(v) {
     v = Math.max(this.min, Math.min(this.max, v));
     if (this.step) v = Math.round(v / this.step) * this.step;
     this.input.value = v;
+    this._self = true;
     this.input.dispatchEvent(new Event('input', { bubbles: true }));
-    this.draw();
+  }
+  step() { // avança a animação; retorna true se ainda animando
+    const d = this.target - this.disp;
+    if (Math.abs(d) < (this.max - this.min) * 1e-4) { if (this.disp !== this.target) { this.disp = this.target; this.draw(); } return false; }
+    this.disp += d * 0.3; this.draw(); return true;
   }
   draw() {
     const ctx = this.ctx, S = this.S, cx = S / 2, cy = S / 2, r = S * 0.30;
-    const t = (+this.input.value - this.min) / (this.max - this.min);
+    const t = (this.disp - this.min) / (this.max - this.min);
     const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25, ang = a0 + (a1 - a0) * t;
     ctx.clearRect(0, 0, S, S);
     ctx.lineCap = 'round';
@@ -787,7 +809,7 @@ class Knob {
   }
 }
 function initKnobs() { document.querySelectorAll('label.knob').forEach((l) => { const inp = l.querySelector('input[type=range]'); if (inp && inp.id) allKnobs.push(new Knob(inp, l)); }); }
-function syncKnobs() { allKnobs.forEach((k) => k.draw()); }
+function syncKnobs() { allKnobs.forEach((k) => { k.target = +k.input.value; k.draw(); }); }
 
 // ---- temas / skins ----
 const THEMES = ['onyx', 'vintage', 'blue', 'crimson'];
@@ -820,7 +842,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', ()
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.5.0';
+const APP_VERSION = 'v0.6.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -845,4 +867,17 @@ initKnobs();
 selectModule('amp');   // amp em foco por padrão
 syncChainDots();
 snapshotForUndo(); // estado inicial no histórico
+uiLoop();          // liga o loop de animação (knobs/meters/scope)
+
+// ripple material nos botões e chips
+document.addEventListener('pointerdown', (e) => {
+  const b = e.target.closest('.btn, .ghost, .mini, .chip'); if (!b) return;
+  const rect = b.getBoundingClientRect(), d = Math.max(rect.width, rect.height);
+  const r = document.createElement('span'); r.className = 'ripple';
+  r.style.width = r.style.height = d + 'px';
+  r.style.left = (e.clientX - rect.left - d / 2) + 'px';
+  r.style.top = (e.clientY - rect.top - d / 2) + 'px';
+  b.appendChild(r); setTimeout(() => r.remove(), 520);
+});
+
 Log.info('app carregado ' + APP_VERSION);
