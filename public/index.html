@@ -168,13 +168,31 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; }
   }
+
+  /* ---------- Sprint D: tooltips, ajuda, onboarding ---------- */
+  .tip { position:fixed; transform:translate(-50%,-100%); background:rgba(0,0,0,.92); color:var(--txt);
+         border:1px solid var(--edge); padding:6px 10px; border-radius:8px; font-size:12px; line-height:1.35;
+         max-width:240px; text-align:center; pointer-events:none; opacity:0; transition:opacity .12s; z-index:2000; }
+  .tip.show { opacity:1; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.62); backdrop-filter:blur(6px); display:none;
+             align-items:center; justify-content:center; z-index:1500; padding:20px; }
+  .overlay.open { display:flex; }
+  .sheet { background:var(--panel); border:1px solid var(--edge); border-radius:18px; padding:28px 32px;
+           max-width:540px; width:100%; box-shadow:0 30px 80px rgba(0,0,0,.6); animation:fade .25s ease; }
+  .sheet h2 { margin:0 0 6px; font-size:22px; }
+  .sheet p { color:var(--dim); font-size:13px; margin:6px 0; }
+  .sheet ul { color:var(--dim); font-size:13px; margin:10px 0; padding-left:18px; }
+  .sc { display:grid; grid-template-columns:auto 1fr; gap:9px 14px; margin:16px 0; font-size:13px; align-items:center; }
+  kbd { background:#000; border:1px solid var(--edge); border-bottom-width:2px; border-radius:6px; padding:2px 8px;
+        font:12px ui-monospace,Consolas,monospace; color:var(--txt); white-space:nowrap; justify-self:start; }
+  .sheet .foot { display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
 </style>
 </head>
 <body>
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.6.2</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.6.3</small></span>
   <button id="power">⏻ Ligar</button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -189,6 +207,7 @@
     <option value="onyx">Onyx</option><option value="vintage">Vintage</option>
     <option value="blue">Blueface</option><option value="crimson">Crimson</option>
   </select>
+  <button id="helpBtn" class="ghost" style="font-weight:700">?</button>
 </div>
 
 <div class="util">
@@ -404,6 +423,36 @@
     </div>
   </div>
 </footer>
+
+<!-- boas-vindas (1ª vez) -->
+<div class="overlay" id="welcome"><div class="sheet">
+  <h2>🎸 Bem-vindo ao guitar-rig-dsp</h2>
+  <p>Um rack de guitarra no navegador com amps modelados do zero. Rapidão pra começar:</p>
+  <ul>
+    <li><b>Ligue o rig</b> (botão no topo) e permita o microfone/interface — use <b>fone</b>.</li>
+    <li>A <b>tira de cadeia</b> em cima mostra o fluxo do sinal: clique num bloco pra editá-lo.</li>
+    <li>Sem guitarra? Marque <b>Tom de teste</b> no dock (embaixo).</li>
+    <li>Comece por um <b>preset</b> (ex.: ★ Metal moderno) e mexa nos knobs.</li>
+  </ul>
+  <p>Aperte <kbd>?</kbd> a qualquer momento pra ver os atalhos.</p>
+  <div class="foot"><button id="welcomeGo" class="btn on">Começar 🤘</button></div>
+</div></div>
+
+<!-- ajuda / atalhos -->
+<div class="overlay" id="help"><div class="sheet">
+  <h2>Atalhos & Ajuda</h2>
+  <div class="sc">
+    <kbd>Espaço</kbd><span>Ligar / desligar o rig</span>
+    <kbd>1 – 6</kbd><span>Focar Gate · Comp · Drive · Amp · EQ · Cab</span>
+    <kbd>A</kbd> / <kbd>B</kbd><span>Recuperar a cena A / B</span>
+    <kbd>[</kbd> / <kbd>]</kbd><span>Preset anterior / próximo</span>
+    <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Y</kbd><span>Desfazer / refazer</span>
+    <kbd>?</kbd><span>Abrir/fechar esta ajuda</span>
+  </div>
+  <p>💡 Nos knobs: arraste pra cima/baixo · <b>Shift</b> = ajuste fino · <b>duplo-clique</b> = reset · scroll também funciona.</p>
+  <p>💡 Arraste o chip <b>Drive</b> ou <b>Amp</b> na tira pra trocar a ordem. Passe o mouse em qualquer botão pra ver a dica.</p>
+  <div class="foot"><button id="helpClose" class="btn">Fechar</button></div>
+</div></div>
 
 <script src="app.js"></script>
 </body>

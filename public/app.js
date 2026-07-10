@@ -919,7 +919,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', ()
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.6.2';
+const APP_VERSION = 'v0.6.3';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -957,6 +957,83 @@ document.addEventListener('pointerdown', (e) => {
   r.style.left = (e.clientX - rect.left - d / 2) + 'px';
   r.style.top = (e.clientY - rect.top - d / 2) + 'px';
   b.appendChild(r); setTimeout(() => r.remove(), 520);
+});
+
+// ===========================================================================
+// Sprint D — Onboarding & Ajuda: tooltips, atalhos de teclado, help, welcome
+// ===========================================================================
+
+// tooltips (data-tip) definidos por JS pra não poluir o HTML
+const CHIP_TIPS = {
+  gate: 'Noise Gate — corta o ruído/hiss entre as notas (essencial em alto ganho)',
+  comp: 'Compressor — controla a dinâmica, mais sustain e uniformidade',
+  od: 'Overdrive — empurra o amp e aperta o grave (tightener)',
+  amp: 'Cabeçote — o coração do tom, 2 modelos (JCM800 / 5150)',
+  eq: 'EQ paramétrico — molda o timbre depois do cabinet',
+  cab: 'Cabinet + microfones — caixa, falante e micagem (dual-mic estéreo)',
+  looper: 'Looper — grave camadas e toque por cima',
+  rhythm: 'Ritmo — metrônomo + bateria pra praticar',
+  audio: 'Áudio — dispositivo de entrada, sample rate e latência',
+  system: 'Sistema — performance e log',
+};
+document.querySelectorAll('.chip').forEach((c) => { if (CHIP_TIPS[c.dataset.mod]) c.dataset.tip = CHIP_TIPS[c.dataset.mod]; });
+const BTN_TIPS = {
+  power: 'Ligar/desligar o rig (Espaço)', helpBtn: 'Ajuda e atalhos (?)',
+  undoBtn: 'Desfazer (Ctrl+Z)', redoBtn: 'Refazer (Ctrl+Y)',
+  abSetA: 'Guardar o estado atual em A', abSetB: 'Guardar o estado atual em B', abToggle: 'Alternar A/B pra comparar',
+  midiEnable: 'Ativar controle por MIDI', midiClear: 'Limpar mapeamentos MIDI',
+  presetSave: 'Salvar preset', presetExport: 'Exportar preset (.json)', presetDel: 'Apagar preset',
+  mgrToggle: 'Gerenciar presets (busca / tags / favoritos)', swapOrder: 'Trocar a ordem OD ⇄ Amp',
+  themeSel: 'Trocar a skin', presetList: 'Escolher um preset',
+};
+for (const [id, t] of Object.entries(BTN_TIPS)) { const el = $(id); if (el) el.dataset.tip = t; }
+
+// engine de tooltip
+const tipEl = document.createElement('div'); tipEl.className = 'tip'; document.body.appendChild(tipEl);
+document.addEventListener('mouseover', (e) => {
+  const el = e.target.closest('[data-tip]'); if (!el) return;
+  tipEl.textContent = el.dataset.tip;
+  const r = el.getBoundingClientRect();
+  tipEl.style.left = (r.left + r.width / 2) + 'px'; tipEl.style.top = (r.top - 8) + 'px';
+  tipEl.classList.add('show');
+});
+document.addEventListener('mouseout', (e) => { if (e.target.closest('[data-tip]')) tipEl.classList.remove('show'); });
+
+// ajuda / atalhos
+const toggleHelp = (force) => $('help').classList.toggle('open', force);
+$('helpBtn').addEventListener('click', () => $('help').classList.toggle('open'));
+$('helpClose').addEventListener('click', () => toggleHelp(false));
+$('help').addEventListener('click', (e) => { if (e.target === $('help')) toggleHelp(false); });
+
+// welcome de primeira vez
+(function welcome() {
+  let seen = false; try { seen = localStorage.getItem('grd-seen') === '1'; } catch {}
+  if (!seen) $('welcome').classList.add('open');
+})();
+$('welcomeGo').addEventListener('click', () => { $('welcome').classList.remove('open'); try { localStorage.setItem('grd-seen', '1'); } catch {} });
+
+// navegação por preset (setas [ ])
+function presetStep(dir) {
+  const list = $('presetList'), opts = [...list.options].filter((o) => o.value);
+  if (!opts.length) return;
+  let i = opts.findIndex((o) => o.value === list.value);
+  i = (i + dir + opts.length) % opts.length;
+  list.value = opts[i].value; list.dispatchEvent(new Event('change'));
+}
+
+// atalhos de teclado (ignora quando digitando em campo)
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input, select, textarea')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return; // Ctrl+Z/Y tratados noutro handler
+  const k = e.key;
+  if (k === '?') { e.preventDefault(); $('help').classList.toggle('open'); }
+  else if (k === 'Escape') { toggleHelp(false); $('welcome').classList.remove('open'); }
+  else if (k === ' ' && !e.target.closest('button')) { e.preventDefault(); running ? stop() : start(); }
+  else if (k >= '1' && k <= '6') selectModule(['gate', 'comp', 'od', 'amp', 'eq', 'cab'][+k - 1]);
+  else if (k === 'a' || k === 'A') { if (abA) applyAndMark(clone(abA)); }
+  else if (k === 'b' || k === 'B') { if (abB) applyAndMark(clone(abB)); }
+  else if (k === '[') presetStep(-1);
+  else if (k === ']') presetStep(1);
 });
 
 Log.info('app carregado ' + APP_VERSION);
