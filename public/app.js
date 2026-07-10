@@ -194,6 +194,7 @@ function stop() {
   $('power').classList.remove('on');
   $('status').textContent = 'Rig desligado.';
   ['inMeter', 'outMeter', 'gateGr', 'compGr'].forEach((id) => $(id).style.width = '0%');
+  mb.in = mb.out = -100; drawVU(-60);
   Log.info('rig desligado');
 }
 
@@ -301,6 +302,7 @@ function uiLoop() {
     // glow reativo: os chips acesos pulsam conforme o nível de saída
     document.documentElement.style.setProperty('--sig', Math.max(0, Math.min(1, (mb.out + 60) / 60)).toFixed(3));
     drawScope();
+    drawVU(mb.out);
     perf.tick();
   }
   requestAnimationFrame(uiLoop);
@@ -787,26 +789,74 @@ class Knob {
     this.disp += d * 0.3; this.draw(); return true;
   }
   draw() {
-    const ctx = this.ctx, S = this.S, cx = S / 2, cy = S / 2, r = S * 0.30;
+    const ctx = this.ctx, S = this.S, cx = S / 2, cy = S / 2, r = S * 0.26;
     const t = (this.disp - this.min) / (this.max - this.min);
     const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25, ang = a0 + (a1 - a0) * t;
+    const acc = cssVar('--accent'), edge = cssVar('--edge');
     ctx.clearRect(0, 0, S, S);
     ctx.lineCap = 'round';
+    // ticks ao redor (marcações)
+    ctx.strokeStyle = edge; ctx.lineWidth = 1;
+    for (let i = 0; i <= 10; i++) { const aa = a0 + (a1 - a0) * (i / 10), c1 = Math.cos(aa), s1 = Math.sin(aa), r2 = r + (i % 5 === 0 ? 9 : 7);
+      ctx.beginPath(); ctx.moveTo(cx + c1 * (r + 6), cy + s1 * (r + 6)); ctx.lineTo(cx + c1 * r2, cy + s1 * r2); ctx.stroke(); }
     // trilho
-    ctx.lineWidth = 3; ctx.strokeStyle = cssVar('--edge');
-    ctx.beginPath(); ctx.arc(cx, cy, r + 6, a0, a1); ctx.stroke();
-    // arco de valor
-    ctx.strokeStyle = cssVar('--accent');
-    ctx.beginPath(); ctx.arc(cx, cy, r + 6, a0, ang); ctx.stroke();
-    // corpo metálico
-    const g = ctx.createRadialGradient(cx - 4, cy - 6, 2, cx, cy, r + 2);
-    g.addColorStop(0, 'rgba(255,255,255,.35)'); g.addColorStop(0.4, cssVar('--metal1')); g.addColorStop(1, cssVar('--metal2'));
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill();
-    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.stroke();
-    // ponteiro
-    ctx.strokeStyle = cssVar('--accent'); ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(cx + Math.cos(ang) * r * 0.3, cy + Math.sin(ang) * r * 0.3); ctx.lineTo(cx + Math.cos(ang) * r * 0.88, cy + Math.sin(ang) * r * 0.88); ctx.stroke();
+    ctx.lineWidth = 3.5; ctx.strokeStyle = edge; ctx.beginPath(); ctx.arc(cx, cy, r + 5, a0, a1); ctx.stroke();
+    // arco de valor (com glow)
+    ctx.save(); ctx.strokeStyle = acc; ctx.shadowColor = acc; ctx.shadowBlur = 7;
+    ctx.beginPath(); ctx.arc(cx, cy, r + 5, a0, ang); ctx.stroke(); ctx.restore();
+    // corpo metálico com sombra e bisel
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 2;
+    const g = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.5, 1, cx, cy, r * 1.2);
+    g.addColorStop(0, 'rgba(255,255,255,.5)'); g.addColorStop(0.4, cssVar('--metal1')); g.addColorStop(1, cssVar('--metal2'));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill(); ctx.restore();
+    // aro (escuro) + brilho superior
+    ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.arc(cx, cy - 0.5, r - 1.5, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+    // textura de grip (ranhuras)
+    ctx.strokeStyle = 'rgba(0,0,0,.32)'; ctx.lineWidth = 1;
+    for (let i = 0; i < 12; i++) { const aa = (i / 12) * Math.PI * 2, c1 = Math.cos(aa), s1 = Math.sin(aa);
+      ctx.beginPath(); ctx.moveTo(cx + c1 * r * 0.8, cy + s1 * r * 0.8); ctx.lineTo(cx + c1 * r * 0.97, cy + s1 * r * 0.97); ctx.stroke(); }
+    // ponteiro com glow + ponta
+    const px = cx + Math.cos(ang) * r * 0.9, py = cy + Math.sin(ang) * r * 0.9;
+    ctx.save(); ctx.strokeStyle = acc; ctx.shadowColor = acc; ctx.shadowBlur = 6; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(ang) * r * 0.3, cy + Math.sin(ang) * r * 0.3); ctx.lineTo(px, py); ctx.stroke();
+    ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(px, py, 1.8, 0, 7); ctx.fill(); ctx.restore();
   }
+}
+
+// ---- VU de agulha analógico (saída) ----
+let vuCtx = null;
+function initVU() {
+  const c = $('vu'); if (!c) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  c.width = 240 * dpr; c.height = 150 * dpr;
+  vuCtx = c.getContext('2d'); vuCtx.scale(dpr, dpr);
+  drawVU(-60);
+}
+function drawVU(db) {
+  if (!vuCtx) return;
+  const ctx = vuCtx, W = 240, H = 150, px = W / 2, py = H - 16, R = H - 44;
+  const lo = -40, hi = 3, span = 1.7, base = -Math.PI / 2;
+  const toAng = (d) => { const t = Math.max(0, Math.min(1, (d - lo) / (hi - lo))); return base - span / 2 + t * span; };
+  ctx.clearRect(0, 0, W, H);
+  // arco de fundo
+  ctx.lineWidth = 3; ctx.strokeStyle = cssVar('--edge');
+  ctx.beginPath(); ctx.arc(px, py, R, base - span / 2, base + span / 2); ctx.stroke();
+  // zona vermelha (0..+3 dB)
+  ctx.strokeStyle = '#e0503a'; ctx.beginPath(); ctx.arc(px, py, R, toAng(0), toAng(hi)); ctx.stroke();
+  // ticks + labels
+  ctx.font = '9px system-ui'; ctx.textAlign = 'center';
+  for (const m of [-40, -20, -10, -5, 0, 3]) { const a = toAng(m), c1 = Math.cos(a), s1 = Math.sin(a);
+    ctx.strokeStyle = m >= 0 ? '#e0503a' : cssVar('--dim'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px + c1 * (R - 5), py + s1 * (R - 5)); ctx.lineTo(px + c1 * R, py + s1 * R); ctx.stroke();
+    ctx.fillStyle = m >= 0 ? '#e0503a' : cssVar('--dim'); ctx.fillText(m === 0 ? '0' : '' + m, px + c1 * (R - 15), py + s1 * (R - 15) + 3); }
+  ctx.fillStyle = cssVar('--dim'); ctx.font = 'bold 11px system-ui'; ctx.fillText('VU', px, py - R + 20);
+  // agulha (com glow)
+  const a = toAng(db);
+  ctx.save(); ctx.strokeStyle = cssVar('--accent'); ctx.shadowColor = cssVar('--accent'); ctx.shadowBlur = 7; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(a) * (R - 3), py + Math.sin(a) * (R - 3)); ctx.stroke(); ctx.restore();
+  // pivô
+  ctx.fillStyle = cssVar('--txt'); ctx.beginPath(); ctx.arc(px, py, 4, 0, 7); ctx.fill();
 }
 function initKnobs() { document.querySelectorAll('label.knob').forEach((l) => { const inp = l.querySelector('input[type=range]'); if (inp && inp.id) allKnobs.push(new Knob(inp, l)); }); }
 function syncKnobs() { allKnobs.forEach((k) => { k.target = +k.input.value; k.draw(); }); }
@@ -842,7 +892,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', ()
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.6.0';
+const APP_VERSION = 'v0.6.1';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -864,6 +914,7 @@ refreshPresetList();
 renderMidiMap();
 loadUserPresets();
 initKnobs();
+initVU();
 selectModule('amp');   // amp em foco por padrão
 syncChainDots();
 snapshotForUndo(); // estado inicial no histórico
