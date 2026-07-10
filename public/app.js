@@ -793,6 +793,22 @@ class Knob {
     label.appendChild(c);
     label.classList.add('has-knob');
 
+    // acessibilidade: knob vira um slider navegável por teclado
+    const name = (label.querySelector('.row span') || {}).textContent || input.id;
+    c.tabIndex = 0; c.setAttribute('role', 'slider'); c.setAttribute('aria-label', name);
+    c.setAttribute('aria-valuemin', this.min); c.setAttribute('aria-valuemax', this.max);
+    c.addEventListener('keydown', (e) => {
+      const big = (this.max - this.min) / 10; let v = +input.value, hit = true;
+      switch (e.key) {
+        case 'ArrowUp': case 'ArrowRight': v += this.step; break;
+        case 'ArrowDown': case 'ArrowLeft': v -= this.step; break;
+        case 'PageUp': v += big; break; case 'PageDown': v -= big; break;
+        case 'Home': v = this.min; break; case 'End': v = this.max; break;
+        default: hit = false;
+      }
+      if (hit) { e.preventDefault(); this.set(v); }
+    });
+
     let startY = 0, startVal = 0, drag = false, fine = false;
     c.addEventListener('pointerdown', (e) => { if (midiLearn) return; drag = true; fine = e.shiftKey; startY = e.clientY; startVal = +input.value; c.setPointerCapture(e.pointerId); });
     c.addEventListener('pointermove', (e) => { if (!drag) return; const dy = startY - e.clientY; const rng = this.max - this.min; let v = startVal + (dy / 160) * rng * (fine ? 0.25 : 1); this.set(v); });
@@ -800,8 +816,14 @@ class Knob {
     c.addEventListener('dblclick', () => this.set(this.default));
     c.addEventListener('wheel', (e) => { e.preventDefault(); const d = (e.deltaY < 0 ? 1 : -1) * this.step * (e.shiftKey ? 1 : 5); this.set(+input.value + d); }, { passive: false });
     // mudança externa (preset/MIDI/undo) → anima em spring; mudança própria (drag) → instantânea
-    input.addEventListener('input', () => { this.target = +this.input.value; if (this._self) { this.disp = this.target; this._self = false; this.draw(); } });
+    input.addEventListener('input', () => { this.target = +this.input.value; this._aria(); if (this._self) { this.disp = this.target; this._self = false; this.draw(); } });
+    this._aria();
     this.draw();
+  }
+  _aria() {
+    this.c.setAttribute('aria-valuenow', this.input.value);
+    const vb = this.label.querySelector('b');
+    this.c.setAttribute('aria-valuetext', vb ? vb.textContent : this.input.value);
   }
   set(v) {
     v = Math.max(this.min, Math.min(this.max, v));
@@ -886,7 +908,7 @@ function drawVU(db) {
   ctx.fillStyle = cssVar('--txt'); ctx.beginPath(); ctx.arc(px, py, 4, 0, 7); ctx.fill();
 }
 function initKnobs() { document.querySelectorAll('label.knob').forEach((l) => { const inp = l.querySelector('input[type=range]'); if (inp && inp.id) allKnobs.push(new Knob(inp, l)); }); }
-function syncKnobs() { allKnobs.forEach((k) => { k.target = +k.input.value; k.draw(); }); }
+function syncKnobs() { allKnobs.forEach((k) => { k.target = +k.input.value; k._aria(); k.draw(); }); }
 
 // ---- temas / skins ----
 const THEMES = ['onyx', 'vintage', 'blue', 'crimson'];
@@ -905,7 +927,7 @@ $('themeSel').addEventListener('change', () => applyTheme($('themeSel').value));
 // ---- tira de cadeia: foco de módulo + LEDs de estado (Neural-DSP style) ----
 function selectModule(id) {
   document.querySelectorAll('.mod').forEach((m) => m.classList.toggle('active', m.dataset.mod === id));
-  document.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', c.dataset.mod === id));
+  document.querySelectorAll('.chip').forEach((c) => { const on = c.dataset.mod === id; c.classList.toggle('active', on); c.setAttribute('aria-selected', on ? 'true' : 'false'); });
 }
 function syncChainDots() {
   document.querySelectorAll('.chip[data-sw]').forEach((c) => {
@@ -919,7 +941,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', ()
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.6.3';
+const APP_VERSION = 'v0.6.4';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -986,7 +1008,14 @@ const BTN_TIPS = {
   mgrToggle: 'Gerenciar presets (busca / tags / favoritos)', swapOrder: 'Trocar a ordem OD ⇄ Amp',
   themeSel: 'Trocar a skin', presetList: 'Escolher um preset',
 };
-for (const [id, t] of Object.entries(BTN_TIPS)) { const el = $(id); if (el) el.dataset.tip = t; }
+for (const [id, t] of Object.entries(BTN_TIPS)) { const el = $(id); if (el) { el.dataset.tip = t; el.setAttribute('aria-label', t); } }
+
+// ARIA: cadeia = tablist, chips = tabs, módulos = tabpanels; status ao vivo; overlays = dialog
+$('chain').setAttribute('role', 'tablist');
+document.querySelectorAll('.chip').forEach((c) => { c.setAttribute('role', 'tab'); if (CHIP_TIPS[c.dataset.mod]) c.setAttribute('aria-label', c.textContent.trim() + ' — ' + CHIP_TIPS[c.dataset.mod]); });
+document.querySelectorAll('.mod').forEach((m) => { m.setAttribute('role', 'tabpanel'); m.setAttribute('aria-label', m.dataset.mod); });
+$('status').setAttribute('aria-live', 'polite');
+['help', 'welcome'].forEach((id) => { const o = $(id); if (o) { o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); } });
 
 // engine de tooltip
 const tipEl = document.createElement('div'); tipEl.className = 'tip'; document.body.appendChild(tipEl);
