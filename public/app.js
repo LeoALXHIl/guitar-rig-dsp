@@ -911,7 +911,7 @@ function initKnobs() { document.querySelectorAll('label.knob').forEach((l) => { 
 function syncKnobs() { allKnobs.forEach((k) => { k.target = +k.input.value; k._aria(); k.draw(); }); }
 
 // ---- temas / skins ----
-const THEMES = ['onyx', 'vintage', 'blue', 'crimson'];
+const THEMES = ['onyx', 'vintage', 'blue', 'crimson', 'emerald', 'violet', 'light'];
 function applyTheme(name) {
   document.documentElement.dataset.theme = name;
   try { localStorage.setItem('grd-theme', name); } catch {}
@@ -941,7 +941,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', ()
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.6.4';
+const APP_VERSION = 'v0.7.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1064,5 +1064,24 @@ document.addEventListener('keydown', (e) => {
   else if (k === '[') presetStep(-1);
   else if (k === ']') presetStep(1);
 });
+
+// ===========================================================================
+// Sprint F — Marca & Skins 2.0: splash + seletor de cor de acento
+// ===========================================================================
+// splash: some depois que o app carrega
+setTimeout(() => { const s = $('splash'); if (s) { s.classList.add('hide'); setTimeout(() => s.remove(), 600); } }, 900);
+
+// cor de acento customizável (sobrepõe a da skin; persiste)
+function applyAccent(hex) {
+  if (hex) document.documentElement.style.setProperty('--accent', hex);
+  else document.documentElement.style.removeProperty('--accent');
+  if (typeof syncKnobs === 'function') syncKnobs();
+}
+$('accentPick').addEventListener('input', () => { applyAccent($('accentPick').value); try { localStorage.setItem('grd-accent', $('accentPick').value); } catch {} });
+$('accentPick').addEventListener('dblclick', () => { applyAccent(''); try { localStorage.removeItem('grd-accent'); } catch {} }); // duplo-clique = volta pro acento da skin
+(function initAccent() {
+  let a = ''; try { a = localStorage.getItem('grd-accent') || ''; } catch {}
+  if (a) { $('accentPick').value = a; applyAccent(a); }
+})();
 
 Log.info('app carregado ' + APP_VERSION);

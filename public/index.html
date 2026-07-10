@@ -16,6 +16,12 @@
           --txt:#e6eef7; --dim:#7f97ad; --accent:#48a8e6; --led:#5ad8e6; --metal1:#2e455c; --metal2:#111c27; }
   :root[data-theme="crimson"] { --bg:#120c0d; --bg2:#181012; --panel:#1c1417; --edge:#3a262d;
           --txt:#f2e0e3; --dim:#ad838b; --accent:#e64a5a; --led:#ff6a52; --metal1:#4a2e34; --metal2:#1a1215; }
+  :root[data-theme="emerald"] { --bg:#0a1310; --bg2:#0f1a16; --panel:#12211b; --edge:#224034;
+          --txt:#e3f2ea; --dim:#82ad9a; --accent:#2fd08a; --led:#5ae6a0; --metal1:#2a4a3c; --metal2:#12211b; }
+  :root[data-theme="violet"] { --bg:#100c17; --bg2:#161020; --panel:#1a1426; --edge:#332748;
+          --txt:#ece3f7; --dim:#9a88b6; --accent:#a066f0; --led:#c088ff; --metal1:#3d2e5c; --metal2:#1a1426; }
+  :root[data-theme="light"] { --bg:#e9e7e0; --bg2:#f4f2ec; --panel:#ffffff; --edge:#d3d0c6;
+          --txt:#1b1b1d; --dim:#6b6a63; --accent:#c8791f; --led:#2fae4e; --metal1:#e8e6df; --metal2:#cdcabf; }
   * { box-sizing:border-box; }
   html { background:var(--bg); }
   html, body { height:100%; }
@@ -204,13 +210,34 @@
     .brand { font-size:14px; }
   }
   @media (hover:none) { .knob-canvas { cursor:default; } .tip { display:none; } }
+
+  /* ---------- Sprint F: splash + acento ---------- */
+  #accentPick { width:30px; height:30px; padding:0; border:1px solid var(--edge); border-radius:8px; background:none; cursor:pointer; }
+  #accentPick::-webkit-color-swatch-wrapper { padding:2px; }
+  #accentPick::-webkit-color-swatch { border:none; border-radius:6px; }
+  #splash { position:fixed; inset:0; z-index:3000; background:var(--bg); display:flex; align-items:center; justify-content:center; transition:opacity .5s; }
+  #splash.hide { opacity:0; pointer-events:none; }
+  .splash-in { text-align:center; }
+  .splash-logo { font-size:56px; animation:pulse 1.2s ease-in-out infinite; }
+  .splash-name { font-weight:800; letter-spacing:2px; margin-top:10px;
+                 background:linear-gradient(180deg,#fff,var(--accent)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .eq { display:flex; gap:4px; justify-content:center; margin-top:18px; height:26px; align-items:flex-end; }
+  .eq i { width:5px; height:6px; background:var(--accent); border-radius:2px; animation:eqb .9s ease-in-out infinite; }
+  .eq i:nth-child(2){animation-delay:.12s} .eq i:nth-child(3){animation-delay:.24s} .eq i:nth-child(4){animation-delay:.36s} .eq i:nth-child(5){animation-delay:.48s}
+  @keyframes eqb { 0%,100%{height:6px} 50%{height:26px} }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
 </style>
 </head>
 <body>
+<div id="splash"><div class="splash-in">
+  <div class="splash-logo">🎸</div>
+  <div class="splash-name">guitar-rig-dsp</div>
+  <div class="eq"><i></i><i></i><i></i><i></i><i></i></div>
+</div></div>
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.6.4</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.7.0</small></span>
   <button id="power">⏻ Ligar</button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -224,7 +251,10 @@
   <select id="themeSel" class="sel">
     <option value="onyx">Onyx</option><option value="vintage">Vintage</option>
     <option value="blue">Blueface</option><option value="crimson">Crimson</option>
+    <option value="emerald">Emerald</option><option value="violet">Violet</option>
+    <option value="light">Light</option>
   </select>
+  <input type="color" id="accentPick" value="#e0a24a" />
   <button id="helpBtn" class="ghost" style="font-weight:700">?</button>
 </div>
 
