@@ -394,7 +394,7 @@ bindKnobs(['compThresh', 'compRatio', 'compAtt', 'compRel', 'compMakeup'], pushC
 $('compBypass').addEventListener('change', () => running && pushCompParams());
 
 bindKnobs(['ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster'], pushAmpParams, (id, v) => v.toFixed(2));
-$('ampModel').addEventListener('change', () => { $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag; if (running) pushAmpParams(); });
+$('ampModel').addEventListener('change', () => { $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag; if (window.Amp3D) Amp3D.setModel(+$('ampModel').value); if (running) pushAmpParams(); });
 $('bright').addEventListener('change', () => running && pushAmpParams());
 $('ampPower').addEventListener('change', () => running && pushAmpParams());
 
@@ -493,6 +493,7 @@ function refreshLabels() {
   const two = ['drive', 'tone', 'level', 'ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster', 'master'];
   two.forEach((id) => { const v = $(id + 'Val'); if (v) v.textContent = (+$(id).value).toFixed(id === 'drive' ? 0 : 2); });
   $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag;
+  if (window.Amp3D) Amp3D.setModel(+$('ampModel').value);
   $('axisVal').textContent = +$('axis').value < 0.5 ? 'on-axis' : 'off-axis';
   $('distanceVal').textContent = +$('distance').value < 0.5 ? 'perto' : 'longe';
   $('gateThreshVal').textContent = (+$('gateThresh').value).toFixed(0) + ' dB';
@@ -916,6 +917,7 @@ function applyTheme(name) {
   document.documentElement.dataset.theme = name;
   try { localStorage.setItem('grd-theme', name); } catch {}
   syncKnobs();
+  if (window.Amp3D) Amp3D.setAccent(cssVar('--accent'));
 }
 $('themeSel').addEventListener('change', () => applyTheme($('themeSel').value));
 (function initTheme() {
@@ -941,7 +943,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', ()
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.7.0';
+const APP_VERSION = 'v0.8.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -965,6 +967,7 @@ loadUserPresets();
 initKnobs();
 initVU();
 initBg();
+if (window.Amp3D && $('amp3d')) { Amp3D.init($('amp3d')); Amp3D.setModel(+$('ampModel').value); Amp3D.setAccent(cssVar('--accent')); }
 selectModule('amp');   // amp em foco por padrão
 syncChainDots();
 snapshotForUndo(); // estado inicial no histórico
@@ -1076,6 +1079,7 @@ function applyAccent(hex) {
   if (hex) document.documentElement.style.setProperty('--accent', hex);
   else document.documentElement.style.removeProperty('--accent');
   if (typeof syncKnobs === 'function') syncKnobs();
+  if (window.Amp3D) Amp3D.setAccent(cssVar('--accent'));
 }
 $('accentPick').addEventListener('input', () => { applyAccent($('accentPick').value); try { localStorage.setItem('grd-accent', $('accentPick').value); } catch {} });
 $('accentPick').addEventListener('dblclick', () => { applyAccent(''); try { localStorage.removeItem('grd-accent'); } catch {} }); // duplo-clique = volta pro acento da skin
