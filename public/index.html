@@ -249,6 +249,29 @@
   .chbtn.active { background:rgba(0,0,0,.55); box-shadow:inset 0 0 0 1px rgba(255,255,255,.35); }
   .chbtn.active .led { opacity:1; box-shadow:0 0 9px currentColor; }
 
+  /* pedais com cara de stompbox real (chassis + parafusos + footswitch + LED) */
+  .card[data-pedal] { --txt:#f0eee8; --dim:#b3b0a6; --edge:rgba(0,0,0,.4); position:relative; padding-top:30px;
+                      border:1px solid rgba(0,0,0,.6); box-shadow:inset 0 1px 0 rgba(255,255,255,.14), inset 0 -30px 60px rgba(0,0,0,.35), 0 20px 50px rgba(0,0,0,.5); }
+  .card[data-pedal]::before, .card[data-pedal]::after { content:''; position:absolute; top:12px; width:10px; height:10px; border-radius:50%;
+      background:radial-gradient(circle at 35% 32%, #b8bbc2, #3a3c42 60%, #17181b); box-shadow:0 1px 2px rgba(0,0,0,.7), inset 0 1px 1px rgba(255,255,255,.4); }
+  .card[data-pedal]::before { left:12px; } .card[data-pedal]::after { right:12px; }
+  .card[data-pedal="gate"] { background:linear-gradient(160deg,#33373e,#17181b); }
+  .card[data-pedal="comp"] { background:linear-gradient(160deg,#1e3a5a,#0f1a28); }
+  .card[data-pedal="od"]   { background:linear-gradient(160deg,#8a5220,#301d0d); }
+  .card[data-pedal="eq"]   { background:linear-gradient(160deg,#1f3d39,#101f1d); }
+  .card[data-pedal="cab"]  { background:linear-gradient(160deg,#4c3c29,#221a11); }
+  .card[data-pedal] > header { border-bottom:1px solid rgba(0,0,0,.4); padding-bottom:12px; }
+  .card[data-pedal] h2 { text-shadow:0 1px 0 rgba(0,0,0,.5); }
+  .card[data-pedal] .sub { color:rgba(255,255,255,.55); }
+  .stomp { display:flex; flex-direction:column; align-items:center; gap:9px; margin-top:24px; padding-top:20px; border-top:1px solid rgba(0,0,0,.35); }
+  .fled { width:12px; height:12px; border-radius:50%; background:#3a1a1a; box-shadow:inset 0 0 3px rgba(0,0,0,.7); transition:background .15s, box-shadow .15s; }
+  .fled.on { background:var(--led); box-shadow:0 0 12px var(--led); }
+  .fsw { width:66px; height:66px; border-radius:50%; cursor:pointer; border:3px solid #17181b;
+         background:radial-gradient(circle at 38% 30%, #dcdce0, #7a7d85 52%, #2a2c31);
+         box-shadow:0 7px 16px rgba(0,0,0,.55), inset 0 2px 4px rgba(255,255,255,.5), inset 0 -4px 8px rgba(0,0,0,.45); }
+  .fsw:active { transform:translateY(2px); box-shadow:0 4px 9px rgba(0,0,0,.5), inset 0 2px 4px rgba(255,255,255,.35); }
+  .stomp .lbl2 { font-size:10px; letter-spacing:1px; text-transform:uppercase; color:rgba(255,255,255,.4); }
+
   /* visualizador 3D do amp */
   .amp3d { width:100%; height:240px; display:block; margin-bottom:16px; cursor:grab; touch-action:none;
            background:radial-gradient(120% 120% at 50% 20%, color-mix(in srgb,var(--accent) 8%, transparent), transparent);
@@ -302,7 +325,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.10.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.11.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>

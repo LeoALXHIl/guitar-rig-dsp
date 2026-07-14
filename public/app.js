@@ -651,7 +651,7 @@ function updateUndoUI() {
 $('undoBtn').addEventListener('click', undo);
 $('redoBtn').addEventListener('click', redo);
 document.addEventListener('input', markDirty);
-document.addEventListener('change', () => { markDirty(); syncChainDots(); });
+document.addEventListener('change', () => { markDirty(); syncChainDots(); if (typeof syncStomps === 'function') syncStomps(); });
 document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
@@ -984,7 +984,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.10.0';
+const APP_VERSION = 'v0.11.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1196,5 +1196,26 @@ function diffLabel(from, to) { // o que muda ao ir de `from` pra `to`
 }
 
 renderIcons();
+
+// ---- pedais com cara de stompbox: chassis + footswitch de pisar por bloco ----
+const PEDALS = { gate: { sw: 'gateBypass', inv: 1 }, comp: { sw: 'compBypass', inv: 1 }, od: { sw: 'odBypass', inv: 1 }, eq: { sw: 'eqBypass', inv: 1 }, cab: { sw: 'cabOn', inv: 0 } };
+function syncStomps() {
+  document.querySelectorAll('.fled[data-fled]').forEach((led) => {
+    const p = PEDALS[led.dataset.fled], sw = $(p.sw); if (!sw) return;
+    led.classList.toggle('on', p.inv ? !sw.checked : sw.checked);
+  });
+}
+function injectPedals() {
+  for (const [id, p] of Object.entries(PEDALS)) {
+    const card = document.querySelector(`[data-mod="${id}"] .card`); if (!card || card.querySelector('.stomp')) continue;
+    card.dataset.pedal = id;
+    const stomp = document.createElement('div'); stomp.className = 'stomp';
+    stomp.innerHTML = `<span class="fled" data-fled="${id}"></span><button class="fsw" data-sw="${p.sw}" data-inv="${p.inv}" aria-label="Ligar/desligar ${id}"></button><span class="lbl2">${p.inv ? 'On / Bypass' : 'On / Off'}</span>`;
+    card.appendChild(stomp);
+    stomp.querySelector('.fsw').addEventListener('click', () => { const sw = $(p.sw); if (sw) { sw.checked = !sw.checked; sw.dispatchEvent(new Event('change', { bubbles: true })); } });
+  }
+  syncStomps();
+}
+injectPedals();
 
 Log.info('app carregado ' + APP_VERSION);
