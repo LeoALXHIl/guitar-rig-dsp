@@ -987,7 +987,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.13.1';
+const APP_VERSION = 'v0.14.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1260,17 +1260,50 @@ $('sk3dToggle').addEventListener('click', () => {
   }
 });
 
-// visualizador de modelo .glb real (lazy: carrega a lib model-viewer só ao clicar)
-let glbLoaded = false;
+// visualizador de modelo .glb real + hotspots operáveis (lazy)
+let glbLoaded = false, hsPlaceIdx = -1;
+const HS_LABELS = ['Gain', 'Bass', 'Mid', 'Treb', 'Pres', 'Depth', 'Vol']; // = ordem de KN3D
+function buildGlb() {
+  const wrap = $('glbWrap');
+  const s = document.createElement('script'); s.type = 'module'; s.src = 'https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js'; document.head.appendChild(s);
+  const hs = HS_LABELS.map((l, i) => `<button class="hs unplaced" slot="hotspot-k${i}" data-i="${i}" data-position="0m 0.1m 0m" data-normal="0m 0m 1m" title="${l} — arraste p/ mexer">${l}</button>`).join('');
+  wrap.innerHTML = `<model-viewer id="mv" src="models/amp.glb" camera-controls auto-rotate touch-action="pan-y" interaction-prompt="none" style="width:100%;height:340px;background:#0c0c0e;border-radius:12px">${hs}</model-viewer>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+      <button id="hsPlace" class="mini">Posicionar knobs</button>
+      <span id="hsStatus" style="font-size:12px;color:var(--dim)">Clique "Posicionar knobs" e toque em cada knob do modelo.</span>
+    </div>`;
+  const mv = $('mv');
+  let saved = []; try { saved = JSON.parse(localStorage.getItem('grd-glb-hs') || '[]'); } catch {}
+  const applySaved = () => saved.forEach((p, i) => { if (!p) return; const b = mv.querySelector(`[data-i="${i}"]`); if (b) { b.dataset.position = p.pos; b.dataset.normal = p.normal; b.classList.remove('unplaced'); } });
+  mv.addEventListener('load', applySaved);
+  mv.addEventListener('error', () => { wrap.innerHTML = '<div style="color:var(--dim);font-size:13px;padding:20px">Não carregou o <b>amp.glb</b>. Confira o arquivo em public/models/ e a internet (o viewer vem de CDN).</div>'; });
+  $('hsPlace').addEventListener('click', () => { hsPlaceIdx = 0; $('hsStatus').textContent = `Clique no knob "${HS_LABELS[0]}" no modelo…`; });
+  mv.addEventListener('click', (e) => {
+    if (hsPlaceIdx < 0 || !mv.positionAndNormalFromPoint) return;
+    const r = mv.getBoundingClientRect(), res = mv.positionAndNormalFromPoint(e.clientX - r.left, e.clientY - r.top);
+    if (!res) { $('hsStatus').textContent = 'Clique em cima do amp.'; return; }
+    const b = mv.querySelector(`[data-i="${hsPlaceIdx}"]`);
+    b.dataset.position = res.position.toString(); b.dataset.normal = res.normal.toString(); b.classList.remove('unplaced');
+    saved[hsPlaceIdx] = { pos: res.position.toString(), normal: res.normal.toString() };
+    try { localStorage.setItem('grd-glb-hs', JSON.stringify(saved)); } catch {}
+    hsPlaceIdx++;
+    if (hsPlaceIdx >= HS_LABELS.length) { hsPlaceIdx = -1; $('hsStatus').textContent = 'Pronto! Arraste cada knob pra mexer o som.'; }
+    else { $('hsStatus').textContent = `Clique no knob "${HS_LABELS[hsPlaceIdx]}"…`; }
+  });
+  // arrastar um hotspot = mexer o parâmetro (dispara o input real → DSP + painel)
+  wrap.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('.hs'); if (!b || hsPlaceIdx >= 0) return;
+    e.stopPropagation(); e.preventDefault();
+    const el = $(KN3D[+b.dataset.i]); let ly = e.clientY;
+    const move = (ev) => { el.value = Math.max(0, Math.min(1, +el.value - (ev.clientY - ly) * 0.006)); ly = ev.clientY; el.dispatchEvent(new Event('input', { bubbles: true })); };
+    const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+  });
+}
 $('glbToggle').addEventListener('click', () => {
   const wrap = $('glbWrap'), c = $('amp3d'), f = $('sk3d'), show = wrap.style.display === 'none';
   if (!show) { wrap.style.display = 'none'; c.style.display = 'block'; $('glbToggle').textContent = 'Modelo real (.glb)'; return; }
-  if (!glbLoaded) {
-    glbLoaded = true;
-    const s = document.createElement('script'); s.type = 'module'; s.src = 'https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js'; document.head.appendChild(s);
-    wrap.innerHTML = '<model-viewer src="models/amp.glb" camera-controls auto-rotate touch-action="pan-y" style="width:100%;height:320px;background:#0c0c0e;border-radius:12px" ' +
-      'onerror="this.parentNode.innerHTML=\'<div style=&quot;color:var(--dim);font-size:13px;padding:20px&quot;>Coloque um <b>amp.glb</b> em public/models/ (veja o README). Precisa de internet.</div>\'"></model-viewer>';
-  }
+  if (!glbLoaded) { glbLoaded = true; buildGlb(); }
   wrap.style.display = 'block'; c.style.display = 'none'; f.style.display = 'none';
   $('glbToggle').textContent = 'Voltar ao 3D próprio';
 });

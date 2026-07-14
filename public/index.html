@@ -275,6 +275,13 @@
   .card.has-art { background-repeat:no-repeat; }
   .card.has-art::before, .card.has-art::after { display:none; }
 
+  /* hotspots operáveis sobre o modelo .glb */
+  .hs { width:28px; height:28px; border-radius:50%; color:#fff; font:700 9px/1 system-ui; cursor:ns-resize;
+        border:2px solid #17181b; background:radial-gradient(circle at 38% 30%, #dcdce0, #6a6d75 55%, #2a2c31);
+        box-shadow:0 3px 9px rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; user-select:none; touch-action:none; }
+  .hs:hover { box-shadow:0 0 10px var(--accent); }
+  .hs.unplaced { display:none; }
+
   /* visualizador 3D do amp */
   .amp3d { width:100%; height:240px; display:block; margin-bottom:16px; cursor:grab; touch-action:none;
            background:radial-gradient(120% 120% at 50% 20%, color-mix(in srgb,var(--accent) 8%, transparent), transparent);
@@ -328,7 +335,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.13.1</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.14.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
