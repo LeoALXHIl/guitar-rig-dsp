@@ -1,4 +1,8 @@
 node_modules/
+public/models/*.glb
+public/models/*.gltf
+public/pedals/*.png
+public/amps/*.png
 *.log
 .DS_Store
 .vercel

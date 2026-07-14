@@ -18,6 +18,9 @@ const MIME = {
   '.css': 'text/css; charset=utf-8',
   '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.png': 'image/png',
 };
 
 const server = createServer(async (req, res) => {
