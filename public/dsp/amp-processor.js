@@ -98,17 +98,23 @@ class Biquad {
 const lerp = (a, b, t) => a + (b - a) * t;
 
 const VOICES = [
-  { // 0 — 800-style (JCM800 2203)
+  { // 0 — 800-style (JCM800 2203) — canal único (master volume)
     stages: 3, stageGain: [[1.5, 9], [1.5, 11], [1.2, 6]], bias: [0.12, 0.08, 0.05],
     millerHz: [9000, 11000, 10000], millerBrightHz: 15000, coupleHz: [150, 60], coupleBrightHz: 260,
     midHz: 560, midQ: 0.7, midRange: [-13, 5], trebHz: 3000, bassHz: 100,
     powerGain: [0.4, 4.5], sag: 0.6, xfmrResHz: 95, xfmrResGain: 3,
+    channels: [{ name: 'Normal', gainMul: 1.0, stages: 3 }],
   },
-  { // 1 — 5150-style Lead (EVH 5150III lead)
+  { // 1 — 5150-style (EVH 5150III) — 3 canais
     stages: 4, stageGain: [[2, 12], [2, 13], [1.6, 9], [1.3, 6]], bias: [0.14, 0.10, 0.06, 0.04],
     millerHz: [6000, 7000, 6000, 6000], millerBrightHz: 9000, coupleHz: [220, 120], coupleBrightHz: 340,
     midHz: 650, midQ: 0.8, midRange: [-16, 3], trebHz: 3200, bassHz: 90,
     powerGain: [0.4, 4.0], sag: 0.35, xfmrResHz: 85, xfmrResGain: 4,
+    channels: [
+      { name: 'Clean', gainMul: 0.20, stages: 2 },
+      { name: 'Crunch', gainMul: 0.52, stages: 3 },
+      { name: 'Lead', gainMul: 1.0, stages: 4 },
+    ],
   },
 ];
 
@@ -118,6 +124,7 @@ class AmpProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
       { name: 'model', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'channel', defaultValue: 0, minValue: 0, maxValue: 3, automationRate: 'k-rate' },
       { name: 'gain', defaultValue: 0.6, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
       { name: 'bass', defaultValue: 0.5, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
       { name: 'mid', defaultValue: 0.5, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
@@ -164,7 +171,10 @@ class AmpProcessor extends AudioWorkletProcessor {
 
     const fs = this.fsOS;                       // TODOS os coeficientes usam a taxa 4×
     const V = VOICES[params.model[0] >= 0.5 ? 1 : 0];
-    const gainT = params.gain[0], masterT = params.master[0], bright = params.bright[0] > 0.5;
+    // canal ativo (Clean/Crunch/Lead): escala o ganho do pré e o nº de estágios
+    const chRaw = params.channel ? params.channel[0] : 0;
+    const ch = V.channels[Math.max(0, Math.min(V.channels.length - 1, Math.round(chRaw) || 0))];
+    const gainT = params.gain[0] * ch.gainMul, masterT = params.master[0], bright = params.bright[0] > 0.5;
 
     // coeficientes dependentes do bright (por bloco), à taxa 4×
     const aM = V.millerHz.map((f, i) => this._lpCoef(i === 0 && bright ? V.millerBrightHz : f, fs));
@@ -189,7 +199,7 @@ class AmpProcessor extends AudioWorkletProcessor {
     }
 
     const sagRelease = Math.exp(-1 / (0.06 * fs));
-    const nStages = V.stages;
+    const nStages = ch.stages;
     const up = this.up, L = OS_FACTOR;
 
     for (let i = 0; i < xin.length; i++) {

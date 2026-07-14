@@ -234,6 +234,21 @@
   @keyframes eqb { 0%,100%{height:6px} 50%{height:26px} }
   @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
 
+  /* faceplate por amp (#6) + canais (#7) */
+  .card[data-amp] > header { padding:12px 16px; border-radius:12px; margin:-8px -10px 20px; align-items:center; flex-wrap:wrap; }
+  .card[data-amp="0"] > header { background:linear-gradient(180deg,#d9b45a,#a5802c); color:#1a1205;
+                                 box-shadow:inset 0 1px 0 rgba(255,255,255,.4), inset 0 -2px 6px rgba(0,0,0,.25); }
+  .card[data-amp="0"] > header .sub { color:#4a3810; }
+  .card[data-amp="1"] > header { background:linear-gradient(180deg,#33363c,#131417); color:#eceae4;
+                                 border:1px solid #000; box-shadow:inset 0 1px 0 rgba(255,255,255,.08); }
+  .card[data-amp="1"] > header .sub { color:#8b8a83; }
+  .channels { display:flex; gap:6px; margin-left:auto; }
+  .chbtn { display:inline-flex; align-items:center; gap:6px; background:rgba(0,0,0,.28); color:inherit;
+           border:1px solid rgba(0,0,0,.35); padding:5px 11px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; }
+  .chbtn .led { width:9px; height:9px; border-radius:50%; opacity:.35; transition:opacity .15s, box-shadow .15s; }
+  .chbtn.active { background:rgba(0,0,0,.55); box-shadow:inset 0 0 0 1px rgba(255,255,255,.35); }
+  .chbtn.active .led { opacity:1; box-shadow:0 0 9px currentColor; }
+
   /* visualizador 3D do amp */
   .amp3d { width:100%; height:240px; display:block; margin-bottom:16px; cursor:grab; touch-action:none;
            background:radial-gradient(120% 120% at 50% 20%, color-mix(in srgb,var(--accent) 8%, transparent), transparent);
@@ -287,7 +302,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.9.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.10.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -388,7 +403,7 @@
 
   <!-- AMP (hero) -->
   <section class="mod active" data-mod="amp"><div class="card">
-    <header><h2 id="ampModelName">800-style · 2203</h2><span class="sub">cabeçote · OS 4× · 3D</span></header>
+    <header><h2 id="ampModelName">800-style · 2203</h2><span class="sub">cabeçote · OS 4× · 3D</span><div class="channels" id="ampChannels"></div></header>
     <canvas id="amp3d" class="amp3d" title="Arraste pra girar · scroll pra zoom"></canvas>
     <select id="ampModel" class="sel" style="width:100%;margin-bottom:18px">
       <option value="0" data-tag="800-style · 2203" selected>800-style (JCM800 2203 · EL34)</option>

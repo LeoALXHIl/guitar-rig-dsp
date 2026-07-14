@@ -234,6 +234,7 @@ function pushAmpParams() {
   set('treble', +$('treble').value); set('presence', +$('presence').value); set('depth', +$('depth').value);
   set('master', +$('ampMaster').value);
   amp.parameters.get('model').setValueAtTime(+$('ampModel').value, t);
+  amp.parameters.get('channel').setValueAtTime(ampChannel, t);
   amp.parameters.get('bright').setValueAtTime($('bright').checked ? 1 : 0, t);
   amp.parameters.get('power').setValueAtTime($('ampPower').checked ? 1 : 0, t);
 }
@@ -395,7 +396,32 @@ bindKnobs(['compThresh', 'compRatio', 'compAtt', 'compRel', 'compMakeup'], pushC
 $('compBypass').addEventListener('change', () => running && pushCompParams());
 
 bindKnobs(['ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster'], pushAmpParams, (id, v) => v.toFixed(2));
-$('ampModel').addEventListener('change', () => { $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag; if (window.Amp3D) Amp3D.setModel(+$('ampModel').value); if (running) withDuck(pushAmpParams); });
+// ---- canais + faceplate por amp (#6/#7) ----
+const AMP_CHANNELS = [
+  [{ n: 'Normal', c: '#e0a24a' }],
+  [{ n: 'Clean', c: '#4fae53' }, { n: 'Crunch', c: '#e0a24a' }, { n: 'Lead', c: '#e0503a' }],
+];
+let ampChannel = 0;
+function setFaceplate() {
+  const m = +$('ampModel').value;
+  const card = document.querySelector('[data-mod="amp"] .card'); if (card) card.dataset.amp = m;
+  const list = AMP_CHANNELS[m]; ampChannel = Math.min(ampChannel, list.length - 1);
+  const box = $('ampChannels'); if (!box) return;
+  box.style.display = list.length > 1 ? 'flex' : 'none';
+  box.innerHTML = list.map((c, i) => `<button class="chbtn ${i === ampChannel ? 'active' : ''}" data-ch="${i}"><span class="led" style="background:${c.c};color:${c.c}"></span>${c.n}</button>`).join('');
+}
+$('ampChannels').addEventListener('click', (e) => {
+  const b = e.target.closest('.chbtn'); if (!b) return;
+  ampChannel = +b.dataset.ch; setFaceplate();
+  if (running) withDuck(pushAmpParams); markDirty();
+});
+$('ampModel').addEventListener('change', () => {
+  $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag;
+  if (window.Amp3D) Amp3D.setModel(+$('ampModel').value);
+  ampChannel = +$('ampModel').value === 1 ? 2 : 0; // 5150 abre no Lead; 800 canal único
+  setFaceplate();
+  if (running) withDuck(pushAmpParams);
+});
 $('bright').addEventListener('change', () => running && pushAmpParams());
 $('ampPower').addEventListener('change', () => running && pushAmpParams());
 
@@ -454,7 +480,7 @@ function collectState() {
     gate: { threshold: +$('gateThresh').value, release: +$('gateRel').value, bypass: $('gateBypass').checked },
     comp: { threshold: +$('compThresh').value, ratio: +$('compRatio').value, attack: +$('compAtt').value, release: +$('compRel').value, makeup: +$('compMakeup').value, bypass: $('compBypass').checked },
     od: { drive: +$('drive').value, tone: +$('tone').value, level: +$('level').value, bypass: $('odBypass').checked },
-    amp: { model: $('ampModel').value, gain: +$('ampGain').value, bass: +$('bass').value, mid: +$('mid').value, treble: +$('treble').value, presence: +$('presence').value, depth: +$('depth').value, master: +$('ampMaster').value, bright: $('bright').checked, power: $('ampPower').checked },
+    amp: { model: $('ampModel').value, channel: ampChannel, gain: +$('ampGain').value, bass: +$('bass').value, mid: +$('mid').value, treble: +$('treble').value, presence: +$('presence').value, depth: +$('depth').value, master: +$('ampMaster').value, bright: $('bright').checked, power: $('ampPower').checked },
     eq: { low: +$('eqLow').value, mid: +$('eqMid').value, midFreq: +$('eqMidFreq').value, midQ: +$('eqMidQ').value, high: +$('eqHigh').value, hp: +$('eqHP').value, lp: +$('eqLP').value, bypass: $('eqBypass').checked },
     cab: { cab: $('cabType').value, speaker: $('speaker').value, mic: $('mic').value, micB: $('micB').value, axis: +$('axis').value, distance: +$('distance').value, blend: +$('blend').value, spread: +$('spread').value, on: $('cabOn').checked },
     master: +$('master').value, order: chainOrder.slice(),
@@ -474,6 +500,7 @@ function applyState(s) {
   setC('cabType', s.cab.cab); setC('speaker', s.cab.speaker); setC('mic', s.cab.mic); setC('micB', s.cab.micB); setC('axis', s.cab.axis); setC('distance', s.cab.distance); setC('blend', s.cab.blend); setC('spread', s.cab.spread); setC('cabOn', s.cab.on);
   setC('master', s.master);
   Object.assign(cabSettings, { cab: s.cab.cab, speaker: s.cab.speaker, mic: s.cab.mic, micB: s.cab.micB || 'none', axis: s.cab.axis, distance: s.cab.distance, blend: s.cab.blend ?? 0.5, spread: s.cab.spread ?? 0.4 });
+  ampChannel = s.amp.channel != null ? +s.amp.channel : (+$('ampModel').value === 1 ? 2 : 0);
   refreshLabels();
   setOrder(s.order || ['od', 'amp']);
   if (running) { pushParams(); regenCab(); }
@@ -495,6 +522,7 @@ function refreshLabels() {
   two.forEach((id) => { const v = $(id + 'Val'); if (v) v.textContent = (+$(id).value).toFixed(id === 'drive' ? 0 : 2); });
   $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag;
   if (window.Amp3D) Amp3D.setModel(+$('ampModel').value);
+  if (typeof setFaceplate === 'function') setFaceplate();
   $('axisVal').textContent = +$('axis').value < 0.5 ? 'on-axis' : 'off-axis';
   $('distanceVal').textContent = +$('distance').value < 0.5 ? 'perto' : 'longe';
   $('gateThreshVal').textContent = (+$('gateThresh').value).toFixed(0) + ' dB';
@@ -956,7 +984,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.9.0';
+const APP_VERSION = 'v0.10.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -980,6 +1008,7 @@ loadUserPresets();
 initKnobs();
 initVU();
 initBg();
+setFaceplate();
 if (window.Amp3D && $('amp3d')) { Amp3D.init($('amp3d')); Amp3D.setModel(+$('ampModel').value); Amp3D.setAccent(cssVar('--accent')); }
 selectModule('amp');   // amp em foco por padrão
 syncChainDots();
