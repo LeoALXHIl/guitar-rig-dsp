@@ -985,7 +985,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.11.2';
+const APP_VERSION = 'v0.12.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1239,5 +1239,17 @@ function loadAmpArt() {
   img.src = url;
 }
 loadAmpArt();
+
+// visualizador Sketchfab opcional (lazy) — alterna com o 3D próprio
+const SK_MODEL = 'cdd14da4ff854ff6baf8ed501b2d8296'; // Fender Champion 110 (Antoine)
+$('sk3dToggle').addEventListener('click', () => {
+  const f = $('sk3d'), c = $('amp3d'), show = f.style.display === 'none';
+  if (show) {
+    if (!f.src) f.src = `https://sketchfab.com/models/${SK_MODEL}/embed?ui_infos=0&ui_hint=0&autostart=1&transparent=1`;
+    f.style.display = 'block'; c.style.display = 'none'; $('sk3dToggle').textContent = 'Voltar ao 3D próprio';
+  } else {
+    f.style.display = 'none'; c.style.display = 'block'; $('sk3dToggle').textContent = 'Ver modelo Sketchfab';
+  }
+});
 
 Log.info('app carregado ' + APP_VERSION);
