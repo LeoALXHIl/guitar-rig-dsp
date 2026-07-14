@@ -6,12 +6,12 @@
  * pro cache. O nome do cache carrega a VERSÃO — ao subir uma versão nova, o cache velho
  * é apagado no 'activate' e a UI é avisada da atualização.
  */
-const VERSION = 'v0.14.0';
+const VERSION = 'v0.15.0';
 const CACHE = 'grd-' + VERSION;
 const ASSETS = [
   './', './index.html', './app.js', './amp3d.js', './manifest.webmanifest', './icon.svg',
   './dsp/gate-processor.js', './dsp/compressor-processor.js', './dsp/overdrive-processor.js',
-  './dsp/amp-processor.js', './dsp/eq-processor.js', './dsp/tuner-processor.js', './dsp/looper-processor.js',
+  './dsp/amp-processor.js', './dsp/eq-processor.js', './dsp/tuner-processor.js', './dsp/looper-processor.js', './dsp/delay-processor.js', './dsp/reverb-processor.js',
 ];
 
 self.addEventListener('install', (e) => {

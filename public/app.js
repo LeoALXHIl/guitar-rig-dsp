@@ -14,6 +14,7 @@ let testNode = null, testGain = null;
 
 // blocos
 let gate = null, comp = null, overdrive = null, amp = null, eq = null, tuner = null, tunerMute = null;
+let delay = null, reverb = null; // pós-cab (tempo & espaço)
 let cabConvA = null, cabConvB = null, cabGainA = null, cabGainB = null, panA = null, panB = null, cabDry = null;
 let master = null, looper = null, drumBus = null, inAnalyser = null, outAnalyser = null;
 
@@ -103,7 +104,7 @@ async function start() {
   try {
     ctx = new AudioContext(Object.assign({ latencyHint: audioCfg.latencyHint }, audioCfg.sampleRate ? { sampleRate: audioCfg.sampleRate } : {}));
   } catch (e) { ctx = new AudioContext({ latencyHint: audioCfg.latencyHint }); Log.warn('sampleRate pedido rejeitado, usando padrão'); }
-  for (const m of ['gate', 'compressor', 'overdrive', 'amp', 'eq', 'tuner', 'looper']) await ctx.audioWorklet.addModule(`dsp/${m}-processor.js`);
+  for (const m of ['gate', 'compressor', 'overdrive', 'amp', 'eq', 'tuner', 'looper', 'delay', 'reverb']) await ctx.audioWorklet.addModule(`dsp/${m}-processor.js`);
 
   const wn = (name) => new AudioWorkletNode(ctx, name, { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1 });
   gate = wn('gate-processor');
@@ -130,10 +131,14 @@ async function start() {
   outAnalyser = ctx.createAnalyser(); outAnalyser.fftSize = 2048;
   if (pendingA) { cabConvA.buffer = pendingA; cabConvB.buffer = pendingB || pendingA; }
 
-  // final: cab(A/B/dry) → master → LOOPER → out ; metrônomo/drums → out (fora do loop)
-  cabConvA.connect(cabGainA).connect(panA).connect(master);
-  cabConvB.connect(cabGainB).connect(panB).connect(master);
-  cabDry.connect(master);
+  delay = new AudioWorkletNode(ctx, 'delay-processor', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 2, channelCountMode: 'explicit' });
+  reverb = new AudioWorkletNode(ctx, 'reverb-processor', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 2, channelCountMode: 'explicit' });
+
+  // final: cab(A/B/dry) → DELAY → REVERB → master → LOOPER → out ; drums → out (fora do loop)
+  cabConvA.connect(cabGainA).connect(panA).connect(delay);
+  cabConvB.connect(cabGainB).connect(panB).connect(delay);
+  cabDry.connect(delay);
+  delay.connect(reverb).connect(master);
   master.connect(looper).connect(outAnalyser).connect(ctx.destination);
   drumBus.connect(ctx.destination);
 
@@ -210,7 +215,7 @@ function pushParams() {
   overdrive.parameters.get('tone').setTargetAtTime(+$('tone').value, t, 0.01);
   overdrive.parameters.get('level').setTargetAtTime(+$('level').value, t, 0.01);
   overdrive.parameters.get('bypass').setValueAtTime($('odBypass').checked ? 1 : 0, t);
-  pushGateParams(); pushCompParams(); pushAmpParams(); pushEqParams();
+  pushGateParams(); pushCompParams(); pushAmpParams(); pushEqParams(); pushDelayParams(); pushReverbParams();
 }
 function pushGateParams() {
   if (!gate) return; const t = ctx.currentTime;
@@ -245,6 +250,18 @@ function pushEqParams() {
   set('lowGain', +$('eqLow').value); set('midGain', +$('eqMid').value); set('midFreq', +$('eqMidFreq').value);
   set('midQ', +$('eqMidQ').value); set('highGain', +$('eqHigh').value); set('hpFreq', +$('eqHP').value); set('lpFreq', +$('eqLP').value);
   eq.parameters.get('bypass').setValueAtTime($('eqBypass').checked ? 1 : 0, t);
+}
+function pushDelayParams() {
+  if (!delay) return; const t = ctx.currentTime;
+  const s = (n, v) => delay.parameters.get(n).setTargetAtTime(v, t, 0.02);
+  s('time', +$('dlyTime').value); s('feedback', +$('dlyFb').value); s('tone', +$('dlyTone').value); s('mix', +$('dlyMix').value);
+  delay.parameters.get('bypass').setValueAtTime($('dlyBypass').checked ? 1 : 0, t);
+}
+function pushReverbParams() {
+  if (!reverb) return; const t = ctx.currentTime;
+  const s = (n, v) => reverb.parameters.get(n).setTargetAtTime(v, t, 0.02);
+  s('size', +$('rvSize').value); s('damp', +$('rvDamp').value); s('mix', +$('rvMix').value);
+  reverb.parameters.get('bypass').setValueAtTime($('rvBypass').checked ? 1 : 0, t);
 }
 
 // entrada → gate → comp → (chainOrder: od/amp) → eq → cab
@@ -433,6 +450,13 @@ bindKnobs(['eqLow', 'eqMid', 'eqMidFreq', 'eqMidQ', 'eqHigh', 'eqHP', 'eqLP'], p
 });
 $('eqBypass').addEventListener('change', () => running && pushEqParams());
 
+// --- delay ---
+bindKnobs(['dlyTime', 'dlyFb', 'dlyTone', 'dlyMix'], pushDelayParams, (id, v) => id === 'dlyTime' ? (v * 1000).toFixed(0) + ' ms' : v.toFixed(2));
+$('dlyBypass').addEventListener('change', () => running && pushDelayParams());
+// --- reverb ---
+bindKnobs(['rvSize', 'rvDamp', 'rvMix'], pushReverbParams, (id, v) => v.toFixed(2));
+$('rvBypass').addEventListener('change', () => running && pushReverbParams());
+
 $('cabOn').addEventListener('change', () => running && applyCabState());
 $('cabType').addEventListener('change', () => { cabSettings.cab = $('cabType').value; regenCab(); });
 $('speaker').addEventListener('change', () => { cabSettings.speaker = $('speaker').value; regenCab(); });
@@ -485,6 +509,8 @@ function collectState() {
     amp: { model: $('ampModel').value, channel: ampChannel, gain: +$('ampGain').value, bass: +$('bass').value, mid: +$('mid').value, treble: +$('treble').value, presence: +$('presence').value, depth: +$('depth').value, master: +$('ampMaster').value, bright: $('bright').checked, power: $('ampPower').checked },
     eq: { low: +$('eqLow').value, mid: +$('eqMid').value, midFreq: +$('eqMidFreq').value, midQ: +$('eqMidQ').value, high: +$('eqHigh').value, hp: +$('eqHP').value, lp: +$('eqLP').value, bypass: $('eqBypass').checked },
     cab: { cab: $('cabType').value, speaker: $('speaker').value, mic: $('mic').value, micB: $('micB').value, axis: +$('axis').value, distance: +$('distance').value, blend: +$('blend').value, spread: +$('spread').value, on: $('cabOn').checked },
+    delay: { time: +$('dlyTime').value, feedback: +$('dlyFb').value, tone: +$('dlyTone').value, mix: +$('dlyMix').value, bypass: $('dlyBypass').checked },
+    reverb: { size: +$('rvSize').value, damp: +$('rvDamp').value, mix: +$('rvMix').value, bypass: $('rvBypass').checked },
     master: +$('master').value, order: chainOrder.slice(),
   };
 }
@@ -500,6 +526,9 @@ function applyState(s) {
   setC('treble', s.amp.treble); setC('presence', s.amp.presence); setC('depth', s.amp.depth); setC('ampMaster', s.amp.master); setC('bright', s.amp.bright); setC('ampPower', s.amp.power);
   setC('eqLow', e.low); setC('eqMid', e.mid); setC('eqMidFreq', e.midFreq); setC('eqMidQ', e.midQ); setC('eqHigh', e.high); setC('eqHP', e.hp); setC('eqLP', e.lp); setC('eqBypass', e.bypass);
   setC('cabType', s.cab.cab); setC('speaker', s.cab.speaker); setC('mic', s.cab.mic); setC('micB', s.cab.micB); setC('axis', s.cab.axis); setC('distance', s.cab.distance); setC('blend', s.cab.blend); setC('spread', s.cab.spread); setC('cabOn', s.cab.on);
+  { const d = s.delay || { time: 0.35, feedback: 0.35, tone: 0.5, mix: 0.3, bypass: true }, rv = s.reverb || { size: 0.6, damp: 0.5, mix: 0.25, bypass: true };
+    setC('dlyTime', d.time); setC('dlyFb', d.feedback); setC('dlyTone', d.tone); setC('dlyMix', d.mix); setC('dlyBypass', d.bypass);
+    setC('rvSize', rv.size); setC('rvDamp', rv.damp); setC('rvMix', rv.mix); setC('rvBypass', rv.bypass); }
   setC('master', s.master);
   Object.assign(cabSettings, { cab: s.cab.cab, speaker: s.cab.speaker, mic: s.cab.mic, micB: s.cab.micB || 'none', axis: s.cab.axis, distance: s.cab.distance, blend: s.cab.blend ?? 0.5, spread: s.cab.spread ?? 0.4 });
   ampChannel = s.amp.channel != null ? +s.amp.channel : (+$('ampModel').value === 1 ? 2 : 0);
@@ -541,6 +570,8 @@ function refreshLabels() {
   $('eqMidQVal').textContent = 'Q ' + (+$('eqMidQ').value).toFixed(1);
   $('eqHPVal').textContent = (+$('eqHP').value).toFixed(0) + ' Hz';
   $('eqLPVal').textContent = (+$('eqLP').value).toFixed(0) + ' Hz';
+  $('dlyTimeVal').textContent = (+$('dlyTime').value * 1000).toFixed(0) + ' ms';
+  ['dlyFb', 'dlyTone', 'dlyMix', 'rvSize', 'rvDamp', 'rvMix'].forEach((id) => { const v = $(id + 'Val'); if (v) v.textContent = (+$(id).value).toFixed(2); });
   $('blendVal').textContent = Math.round((1 - cabSettings.blend) * 100) + '/' + Math.round(cabSettings.blend * 100);
   $('spreadVal').textContent = Math.round(cabSettings.spread * 100) + '%';
   if (typeof syncChainDots === 'function') syncChainDots();
@@ -987,7 +1018,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.14.0';
+const APP_VERSION = 'v0.15.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1047,6 +1078,8 @@ const CHIP_TIPS = {
   amp: 'Cabeçote — o coração do tom, 2 modelos (JCM800 / 5150)',
   eq: 'EQ paramétrico — molda o timbre depois do cabinet',
   cab: 'Cabinet + microfones — caixa, falante e micagem (dual-mic estéreo)',
+  delay: 'Delay — ecos (analógico/digital) com feedback e tone, pós-cab',
+  reverb: 'Reverb — ambiência (Freeverb), size/damp/mix, pós-cab',
   looper: 'Looper — grave camadas e toque por cima',
   rhythm: 'Ritmo — metrônomo + bateria pra praticar',
   audio: 'Áudio — dispositivo de entrada, sample rate e latência',

@@ -335,7 +335,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.14.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.15.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -388,6 +388,10 @@
   <button class="chip" data-mod="eq" data-sw="eqBypass" data-inv="1"><span class="dot"></span>EQ</button>
   <span class="link"></span>
   <button class="chip" data-mod="cab" data-sw="cabOn" data-inv="0"><span class="dot"></span>Cab</button>
+  <span class="link"></span>
+  <button class="chip" data-mod="delay" data-sw="dlyBypass" data-inv="1"><span class="dot"></span>Delay</button>
+  <span class="link"></span>
+  <button class="chip" data-mod="reverb" data-sw="rvBypass" data-inv="1"><span class="dot"></span>Reverb</button>
   <span class="chdiv"></span>
   <button class="chip tool" data-mod="looper">Looper</button>
   <button class="chip tool" data-mod="rhythm">Ritmo</button>
@@ -495,6 +499,29 @@
       <label class="btn-file">Carregar .wav<input type="file" id="irFile" accept=".wav,audio/wav" hidden /></label>
       <button id="irClear" class="mini">Sintético</button>
     </div>
+  </div></section>
+
+  <!-- DELAY -->
+  <section class="mod" data-mod="delay"><div class="card">
+    <header><h2>Delay</h2><span class="sub">analógico/digital · estéreo</span></header>
+    <div class="knobs big">
+      <label class="knob"><div class="row"><span>Time</span><b id="dlyTimeVal">350 ms</b></div><input type="range" id="dlyTime" min="0.02" max="1.2" step="0.01" value="0.35" /></label>
+      <label class="knob"><div class="row"><span>Feedback</span><b id="dlyFbVal">0.35</b></div><input type="range" id="dlyFb" min="0" max="0.95" step="0.01" value="0.35" /></label>
+      <label class="knob"><div class="row"><span>Tone</span><b id="dlyToneVal">0.50</b></div><input type="range" id="dlyTone" min="0" max="1" step="0.01" value="0.5" /></label>
+      <label class="knob"><div class="row"><span>Mix</span><b id="dlyMixVal">0.30</b></div><input type="range" id="dlyMix" min="0" max="1" step="0.01" value="0.3" /></label>
+    </div>
+    <label class="sw"><input type="checkbox" id="dlyBypass" checked /> Bypass</label>
+  </div></section>
+
+  <!-- REVERB -->
+  <section class="mod" data-mod="reverb"><div class="card">
+    <header><h2>Reverb</h2><span class="sub">Freeverb · estéreo</span></header>
+    <div class="knobs big">
+      <label class="knob"><div class="row"><span>Size</span><b id="rvSizeVal">0.60</b></div><input type="range" id="rvSize" min="0" max="1" step="0.01" value="0.6" /></label>
+      <label class="knob"><div class="row"><span>Damp</span><b id="rvDampVal">0.50</b></div><input type="range" id="rvDamp" min="0" max="1" step="0.01" value="0.5" /></label>
+      <label class="knob"><div class="row"><span>Mix</span><b id="rvMixVal">0.25</b></div><input type="range" id="rvMix" min="0" max="1" step="0.01" value="0.25" /></label>
+    </div>
+    <label class="sw"><input type="checkbox" id="rvBypass" checked /> Bypass</label>
   </div></section>
 
   <!-- LOOPER -->
