@@ -984,7 +984,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.11.0';
+const APP_VERSION = 'v0.11.1';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1217,5 +1217,16 @@ function injectPedals() {
   syncStomps();
 }
 injectPedals();
+
+// carrega arte real do pedal se existir em pedals/<id>.png (senão mantém o chassis CSS)
+function loadPedalArt() {
+  for (const id of Object.keys(PEDALS)) {
+    const card = document.querySelector(`[data-mod="${id}"] .card`); if (!card) continue;
+    const url = `pedals/${id}.png`, img = new Image();
+    img.onload = () => { card.style.backgroundImage = `url('${url}')`; card.style.backgroundSize = 'cover'; card.style.backgroundPosition = 'center'; card.classList.add('has-art'); Log.info('arte carregada: ' + id); };
+    img.src = url; // se 404, onerror silencioso → segue com o CSS
+  }
+}
+loadPedalArt();
 
 Log.info('app carregado ' + APP_VERSION);
