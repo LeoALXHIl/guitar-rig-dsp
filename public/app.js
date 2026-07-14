@@ -283,7 +283,7 @@ function meterStats(analyser) {
 }
 // estado de balística dos meters (VU-like: sobe na hora, desce devagar; + peak-hold)
 const mb = { in: -100, out: -100, inH: -100, outH: -100, inHT: 0, outHT: 0 };
-function animateKnobs() { for (const k of allKnobs) k.step(); }
+function animateKnobs() { for (const k of allKnobs) k.animate(); }
 
 // loop de UI SEMPRE rodando (anima knobs mesmo com o rig desligado); o resto só quando ligado
 function uiLoop() {
@@ -833,7 +833,7 @@ class Knob {
     this._self = true;
     this.input.dispatchEvent(new Event('input', { bubbles: true }));
   }
-  step() { // avança a animação; retorna true se ainda animando
+  animate() { // avança a animação (spring); retorna true se ainda animando
     const d = this.target - this.disp;
     if (Math.abs(d) < (this.max - this.min) * 1e-4) { if (this.disp !== this.target) { this.disp = this.target; this.draw(); } return false; }
     this.disp += d * 0.3; this.draw(); return true;
@@ -938,12 +938,20 @@ function syncChainDots() {
     c.classList.toggle('lit', active);
   });
 }
-document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => selectModule(c.dataset.mod)));
+document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e) => {
+  // clicar no LED (dot) liga/desliga o bloco (bypass); no resto, foca o módulo
+  if (e.target.classList.contains('dot') && c.dataset.sw) {
+    const sw = $(c.dataset.sw);
+    if (sw) { sw.checked = !sw.checked; sw.dispatchEvent(new Event('change', { bubbles: true })); }
+    return;
+  }
+  selectModule(c.dataset.mod);
+}));
 
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.8.1';
+const APP_VERSION = 'v0.8.2';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
