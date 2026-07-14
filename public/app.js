@@ -987,7 +987,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.13.0';
+const APP_VERSION = 'v0.13.1';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1258,6 +1258,21 @@ $('sk3dToggle').addEventListener('click', () => {
   } else {
     f.style.display = 'none'; c.style.display = 'block'; $('sk3dToggle').textContent = 'Ver modelo Sketchfab';
   }
+});
+
+// visualizador de modelo .glb real (lazy: carrega a lib model-viewer só ao clicar)
+let glbLoaded = false;
+$('glbToggle').addEventListener('click', () => {
+  const wrap = $('glbWrap'), c = $('amp3d'), f = $('sk3d'), show = wrap.style.display === 'none';
+  if (!show) { wrap.style.display = 'none'; c.style.display = 'block'; $('glbToggle').textContent = 'Modelo real (.glb)'; return; }
+  if (!glbLoaded) {
+    glbLoaded = true;
+    const s = document.createElement('script'); s.type = 'module'; s.src = 'https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js'; document.head.appendChild(s);
+    wrap.innerHTML = '<model-viewer src="models/amp.glb" camera-controls auto-rotate touch-action="pan-y" style="width:100%;height:320px;background:#0c0c0e;border-radius:12px" ' +
+      'onerror="this.parentNode.innerHTML=\'<div style=&quot;color:var(--dim);font-size:13px;padding:20px&quot;>Coloque um <b>amp.glb</b> em public/models/ (veja o README). Precisa de internet.</div>\'"></model-viewer>';
+  }
+  wrap.style.display = 'block'; c.style.display = 'none'; f.style.display = 'none';
+  $('glbToggle').textContent = 'Voltar ao 3D próprio';
 });
 
 Log.info('app carregado ' + APP_VERSION);

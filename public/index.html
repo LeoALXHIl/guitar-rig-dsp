@@ -328,7 +328,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.13.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.13.1</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -432,7 +432,11 @@
     <header><h2 id="ampModelName">800-style · 2203</h2><span class="sub">cabeçote · OS 4× · 3D</span><div class="channels" id="ampChannels"></div></header>
     <canvas id="amp3d" class="amp3d" title="Arraste pra girar · scroll pra zoom"></canvas>
     <iframe id="sk3d" title="Modelo 3D (Sketchfab)" style="display:none;width:100%;height:300px;border:1px solid var(--edge);border-radius:12px;margin-bottom:14px" allow="autoplay;fullscreen;xr-spatial-tracking" allowfullscreen></iframe>
-    <div style="margin-bottom:14px"><button id="sk3dToggle" class="mini">Ver modelo Sketchfab</button></div>
+    <div id="glbWrap" style="display:none;margin-bottom:14px"></div>
+    <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="sk3dToggle" class="mini">Ver modelo Sketchfab</button>
+      <button id="glbToggle" class="mini">Modelo real (.glb)</button>
+    </div>
     <select id="ampModel" class="sel" style="width:100%;margin-bottom:18px">
       <option value="0" data-tag="800-style · 2203" selected>800-style (JCM800 2203 · EL34)</option>
       <option value="1" data-tag="5150-style · Lead">5150-style Lead (EVH 5150III · 6L6)</option>
