@@ -409,6 +409,7 @@ function setFaceplate() {
   const box = $('ampChannels'); if (!box) return;
   box.style.display = list.length > 1 ? 'flex' : 'none';
   box.innerHTML = list.map((c, i) => `<button class="chbtn ${i === ampChannel ? 'active' : ''}" data-ch="${i}"><span class="led" style="background:${c.c};color:${c.c}"></span>${c.n}</button>`).join('');
+  if (typeof loadAmpArt === 'function') loadAmpArt();
 }
 $('ampChannels').addEventListener('click', (e) => {
   const b = e.target.closest('.chbtn'); if (!b) return;
@@ -984,7 +985,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.11.1';
+const APP_VERSION = 'v0.11.2';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1228,5 +1229,15 @@ function loadPedalArt() {
   }
 }
 loadPedalArt();
+
+// arte real do amp por modelo (amps/amp0.png / amp1.png), senão mantém faceplate CSS + 3D
+function loadAmpArt() {
+  const card = document.querySelector('[data-mod="amp"] .card'); if (!card) return;
+  const url = `amps/amp${+$('ampModel').value}.png`, img = new Image();
+  img.onload = () => { card.style.backgroundImage = `url('${url}')`; card.style.backgroundSize = 'cover'; card.style.backgroundPosition = 'center'; };
+  img.onerror = () => { card.style.backgroundImage = ''; };
+  img.src = url;
+}
+loadAmpArt();
 
 Log.info('app carregado ' + APP_VERSION);
