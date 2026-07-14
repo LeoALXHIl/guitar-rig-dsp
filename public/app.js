@@ -150,7 +150,7 @@ async function start() {
   rewireChain();
 
   running = true;
-  $('power').textContent = '⏻ Desligar o rig';
+  $('powerTxt').textContent = 'Desligar';
   $('power').classList.add('on');
   $('status').textContent = 'Rig ligado. Toque a guitarra ou ative o tom de teste.';
   scopeCtx = $('scope').getContext('2d');
@@ -160,6 +160,7 @@ async function start() {
   $('audioSr').textContent = ctx.sampleRate + ' Hz';
   Log.info(`rig ligado @ ${ctx.sampleRate}Hz, latência ~${latMs.toFixed(1)}ms, hint=${audioCfg.latencyHint}`);
   perf.reset();
+  setTimeout(checkNoSignal, 3500); // #10 avisa se não chegar sinal
   // uiLoop já está rodando desde o load (anima knobs mesmo com rig desligado)
 }
 
@@ -190,7 +191,7 @@ function stop() {
   micStream && micStream.getTracks().forEach((t) => t.stop());
   ctx && ctx.close();
   running = false;
-  $('power').textContent = '⏻ Ligar o rig';
+  $('powerTxt').textContent = 'Ligar';
   $('power').classList.remove('on');
   $('status').textContent = 'Rig desligado.';
   ['inMeter', 'outMeter', 'gateGr', 'compGr'].forEach((id) => $(id).style.width = '0%');
@@ -394,7 +395,7 @@ bindKnobs(['compThresh', 'compRatio', 'compAtt', 'compRel', 'compMakeup'], pushC
 $('compBypass').addEventListener('change', () => running && pushCompParams());
 
 bindKnobs(['ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster'], pushAmpParams, (id, v) => v.toFixed(2));
-$('ampModel').addEventListener('change', () => { $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag; if (window.Amp3D) Amp3D.setModel(+$('ampModel').value); if (running) pushAmpParams(); });
+$('ampModel').addEventListener('change', () => { $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag; if (window.Amp3D) Amp3D.setModel(+$('ampModel').value); if (running) withDuck(pushAmpParams); });
 $('bright').addEventListener('change', () => running && pushAmpParams());
 $('ampPower').addEventListener('change', () => running && pushAmpParams());
 
@@ -584,16 +585,16 @@ function renderManager() {
   const box = $('mgrList'); if (!box) return;
   const rows = filterPresets($('mgrSearch').value, $('mgrFav').checked);
   box.innerHTML = rows.map((r) => `<div class="mgr-row" data-n="${encodeURIComponent(r.name)}">
-      <button class="star ${r.favorite ? 'on' : ''}" data-act="fav" ${r.factory ? 'disabled' : ''}>${r.favorite ? '★' : '☆'}</button>
+      <button class="star ${r.favorite ? 'on' : ''}" data-act="fav" ${r.factory ? 'disabled' : ''}>${r.favorite ? ico('starfill') : ico('star')}</button>
       <span class="mgr-name" data-act="load">${r.name}</span>
       <span class="mgr-tags">${(r.tags || []).map((t) => `<i>${t}</i>`).join('')}</span>
-      ${r.factory ? '<span class="mgr-fx">fábrica</span>' : '<button class="mini" data-act="tag">tags</button><button class="mini" data-act="del">✕</button>'}
+      ${r.factory ? '<span class="mgr-fx">fábrica</span>' : '<button class="mini" data-act="tag">tags</button><button class="mini" data-act="del">' + ico('x') + '</button>'}
     </div>`).join('') || '<div style="color:var(--dim);font-size:13px">nenhum preset</div>';
 }
 $('mgrSearch').addEventListener('input', renderManager);
 $('mgrFav').addEventListener('change', renderManager);
 $('mgrList').addEventListener('click', async (e) => {
-  const row = e.target.closest('.mgr-row'); if (!row) return; const name = decodeURIComponent(row.dataset.n); const act = e.target.dataset.act;
+  const row = e.target.closest('.mgr-row'); if (!row) return; const name = decodeURIComponent(row.dataset.n); const actEl = e.target.closest('[data-act]'); const act = actEl && actEl.dataset.act;
   if (act === 'load') { const s = getPresetState(name); if (s) { applyAndMark(clone(s)); refreshPresetList(name); } }
   else if (act === 'del') { delete userCache[name]; await idbDel(name); refreshPresetList(''); renderManager(); }
   else if (act === 'fav') { const r = userCache[name]; if (r) { r.favorite = !r.favorite; await idbPut(r); renderManager(); } }
@@ -611,10 +612,14 @@ $('abToggle').addEventListener('click', () => { abCur = abCur === 'A' ? 'B' : 'A
 let history = [], hIdx = -1, restoring = false, dirtyT = null;
 function snapshotForUndo() { if (restoring) return; history = history.slice(0, hIdx + 1); history.push(collectState()); if (history.length > 60) history.shift(); hIdx = history.length - 1; updateUndoUI(); }
 function markDirty() { clearTimeout(dirtyT); dirtyT = setTimeout(snapshotForUndo, 350); }
-function applyAndMark(s) { applyState(s); markDirty(); }
+function applyAndMark(s) { withDuck(() => applyState(s)); markDirty(); }
 function undo() { if (hIdx > 0) { hIdx--; restoring = true; applyState(clone(history[hIdx])); restoring = false; updateUndoUI(); } }
 function redo() { if (hIdx < history.length - 1) { hIdx++; restoring = true; applyState(clone(history[hIdx])); restoring = false; updateUndoUI(); } }
-function updateUndoUI() { $('undoBtn').disabled = hIdx <= 0; $('redoBtn').disabled = hIdx >= history.length - 1; }
+function updateUndoUI() {
+  $('undoBtn').disabled = hIdx <= 0; $('redoBtn').disabled = hIdx >= history.length - 1;
+  $('undoBtn').dataset.tip = hIdx > 0 ? 'Desfazer: ' + diffLabel(history[hIdx], history[hIdx - 1]) : 'Nada pra desfazer';
+  $('redoBtn').dataset.tip = hIdx < history.length - 1 ? 'Refazer: ' + diffLabel(history[hIdx], history[hIdx + 1]) : 'Nada pra refazer';
+}
 $('undoBtn').addEventListener('click', undo);
 $('redoBtn').addEventListener('click', redo);
 document.addEventListener('input', markDirty);
@@ -746,8 +751,8 @@ function scheduler() {
   const sixteenth = (60 / transport.bpm) / 4;
   while (transport.nextTime < ctx.currentTime + 0.12) { scheduleStep(transport.step, transport.nextTime); transport.nextTime += sixteenth; transport.step = (transport.step + 1) % 16; }
 }
-function transportStart() { if (!ctx || transport.playing) return; transport.playing = true; transport.step = 0; transport.nextTime = ctx.currentTime + 0.08; transport.timer = setInterval(scheduler, 25); $('transportBtn').textContent = '❚❚ Parar'; $('transportBtn').classList.add('on'); }
-function transportStop() { transport.playing = false; clearInterval(transport.timer); const b = $('transportBtn'); if (b) { b.textContent = '▶ Iniciar'; b.classList.remove('on'); } }
+function transportStart() { if (!ctx || transport.playing) return; transport.playing = true; transport.step = 0; transport.nextTime = ctx.currentTime + 0.08; transport.timer = setInterval(scheduler, 25); $('transportBtn').innerHTML = ico('pause') + '<span>Parar</span>'; $('transportBtn').classList.add('on'); }
+function transportStop() { transport.playing = false; clearInterval(transport.timer); const b = $('transportBtn'); if (b) { b.innerHTML = ico('play') + '<span>Iniciar</span>'; b.classList.remove('on'); } }
 $('transportBtn').addEventListener('click', () => { if (!running) { $('status').textContent = 'Ligue o rig primeiro.'; return; } transport.playing ? transportStop() : transportStart(); });
 $('bpm').addEventListener('input', () => { transport.bpm = +$('bpm').value; $('bpmVal').textContent = transport.bpm + ' BPM'; });
 $('metroOn').addEventListener('change', () => transport.metroOn = $('metroOn').checked);
@@ -951,7 +956,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.8.3';
+const APP_VERSION = 'v0.9.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1095,5 +1100,72 @@ $('accentPick').addEventListener('dblclick', () => { applyAccent(''); try { loca
   let a = ''; try { a = localStorage.getItem('grd-accent') || ''; } catch {}
   if (a) { $('accentPick').value = a; applyAccent(a); }
 })();
+
+// ===========================================================================
+// Lote de polish — #5 ícones SVG · #2 crossfade anti-pop · #10 toast · #18 undo preview
+// ===========================================================================
+
+// ---- #5 ícones SVG (substituem os emojis dos botões de ação) ----
+const SVG = (inner) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const ICONS = {
+  power: SVG('<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>'),
+  save: SVG('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>'),
+  download: SVG('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>'),
+  upload: SVG('<path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>'),
+  trash: SVG('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'),
+  layers: SVG('<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/>'),
+  undo: SVG('<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/>'),
+  redo: SVG('<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h1"/>'),
+  swap: SVG('<path d="m17 3 4 4-4 4"/><path d="M21 7H7"/><path d="m7 21-4-4 4-4"/><path d="M3 17h14"/>'),
+  help: SVG('<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'),
+  play: SVG('<path d="m7 4 13 8-13 8Z" fill="currentColor" stroke="none"/>'),
+  pause: SVG('<path d="M7 4h3v16H7zM14 4h3v16h-3z" fill="currentColor" stroke="none"/>'),
+  rec: SVG('<circle cx="12" cy="12" r="6" fill="currentColor" stroke="none"/>'),
+  x: SVG('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+  star: SVG('<path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.5 6.8 19.2l1-5.8L3.5 9.2l5.9-.9L12 3Z"/>'),
+  starfill: SVG('<path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.5 6.8 19.2l1-5.8L3.5 9.2l5.9-.9L12 3Z" fill="currentColor"/>'),
+};
+const ico = (name) => ICONS[name] || '';
+function renderIcons() { document.querySelectorAll('.ico[data-ico]').forEach((el) => { el.innerHTML = ico(el.dataset.ico); }); }
+
+// ---- #2 crossfade anti-pop: abaixa o master por instantes ao trocar amp/preset ----
+function withDuck(applyFn) {
+  if (!running || !master) { applyFn(); return; }
+  const g = master.gain, cur = +$('master').value, t = ctx.currentTime;
+  g.cancelScheduledValues(t); g.setValueAtTime(g.value, t);
+  g.linearRampToValueAtTime(0.0001, t + 0.012);              // fade-out ~12 ms
+  setTimeout(() => {
+    applyFn();
+    const t2 = ctx.currentTime;
+    g.setValueAtTime(0.0001, t2); g.linearRampToValueAtTime(cur, t2 + 0.05); // fade-in ~50 ms
+  }, 16);
+}
+
+// ---- #10 toast "sem sinal" ----
+function toast(msg, actionLabel, action) {
+  let el = $('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
+  el.innerHTML = '<span></span>';
+  el.firstChild.textContent = msg;
+  if (actionLabel) { const b = document.createElement('button'); b.className = 'btn'; b.textContent = actionLabel; b.onclick = () => { action && action(); el.classList.remove('show'); }; el.appendChild(b); }
+  const close = document.createElement('button'); close.className = 'mini'; close.innerHTML = ico('x'); close.onclick = () => el.classList.remove('show'); el.appendChild(close);
+  el.classList.add('show');
+}
+function checkNoSignal() {
+  if (running && mb.in < -55 && !$('testOn').checked) {
+    toast('Nenhum sinal detectado.', 'Ativar tom de teste', () => { $('testOn').checked = true; $('testOn').dispatchEvent(new Event('change')); });
+  }
+}
+
+// ---- #18 preview do que o Undo/Redo vai fazer ----
+function flat(o, p, out) { for (const k in o) { const v = o[k]; const key = p ? p + '.' + k : k; if (v && typeof v === 'object' && !Array.isArray(v)) flat(v, key, out); else out[key] = Array.isArray(v) ? v.join(',') : v; } return out; }
+function diffLabel(from, to) { // o que muda ao ir de `from` pra `to`
+  if (!from || !to) return '';
+  const a = flat(from, '', {}), b = flat(to, '', {});
+  for (const k of Object.keys(a)) if (String(a[k]) !== String(b[k])) return `${k.split('.').pop()}: ${a[k]} → ${b[k]}`;
+  return 'preset/estado';
+}
+
+renderIcons();
 
 Log.info('app carregado ' + APP_VERSION);

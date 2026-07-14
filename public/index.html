@@ -241,6 +241,19 @@
   .amp3d:active { cursor:grabbing; }
   @media (max-width:640px){ .amp3d { height:180px; } }
 
+  /* ícones SVG */
+  .ico { display:inline-flex; align-items:center; justify-content:center; }
+  .ico svg { display:block; }
+  .ghost, .btn, .mini, #power, .btn-file, .star { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+  /* toast */
+  .toast { position:fixed; left:50%; bottom:84px; transform:translateX(-50%) translateY(16px); z-index:2500;
+           background:var(--panel); border:1px solid var(--edge); border-radius:12px; padding:8px 8px 8px 16px;
+           display:flex; align-items:center; gap:12px; box-shadow:0 14px 44px rgba(0,0,0,.55); opacity:0;
+           pointer-events:none; transition:opacity .25s, transform .25s; font-size:13px; max-width:90vw; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+  .toast .btn { padding:6px 12px; }
+  .toast .mini { padding:6px; }
+
   /* em telas estreitas o rail vira faixa horizontal no topo */
   @media (max-width:820px) {
     .workspace { flex-direction:column; min-height:0; }
@@ -274,16 +287,16 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.8.3</small></span>
-  <button id="power">⏻ Ligar</button>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.9.0</small></span>
+  <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
   <select id="presetList" class="sel" style="min-width:190px"></select>
-  <button id="presetSave" class="ghost">💾</button>
-  <button id="presetExport" class="ghost">⭳</button>
-  <label class="btn-file">⭱<input type="file" id="presetImport" accept=".json,application/json" hidden /></label>
-  <button id="presetDel" class="ghost">🗑</button>
-  <button id="mgrToggle" class="ghost">⧉ Presets</button>
+  <button id="presetSave" class="ghost" aria-label="Salvar preset"><span class="ico" data-ico="save"></span></button>
+  <button id="presetExport" class="ghost" aria-label="Exportar preset"><span class="ico" data-ico="download"></span></button>
+  <label class="btn-file" aria-label="Importar preset"><span class="ico" data-ico="upload"></span><input type="file" id="presetImport" accept=".json,application/json" hidden /></label>
+  <button id="presetDel" class="ghost" aria-label="Apagar preset"><span class="ico" data-ico="trash"></span></button>
+  <button id="mgrToggle" class="ghost"><span class="ico" data-ico="layers"></span> Presets</button>
   <span class="lab">Skin</span>
   <select id="themeSel" class="sel">
     <option value="onyx">Onyx</option><option value="vintage">Vintage</option>
@@ -292,16 +305,16 @@
     <option value="light">Light</option>
   </select>
   <input type="color" id="accentPick" value="#e0a24a" />
-  <button id="helpBtn" class="ghost" style="font-weight:700">?</button>
+  <button id="helpBtn" class="ghost" aria-label="Ajuda"><span class="ico" data-ico="help"></span></button>
 </div>
 
 <div class="util">
-  <div class="grp"><button id="undoBtn" class="ghost" title="Ctrl+Z" disabled>↶</button><button id="redoBtn" class="ghost" title="Ctrl+Y" disabled>↷</button></div>
+  <div class="grp"><button id="undoBtn" class="ghost" title="Ctrl+Z" aria-label="Desfazer" disabled><span class="ico" data-ico="undo"></span></button><button id="redoBtn" class="ghost" title="Ctrl+Y" aria-label="Refazer" disabled><span class="ico" data-ico="redo"></span></button></div>
   <div class="grp"><span class="lab">A/B</span><button id="abSetA" class="ghost">Set A</button><button id="abSetB" class="ghost">Set B</button><button id="abToggle" class="ghost">A/B: A</button></div>
   <div class="grp"><span class="lab">Snap</span><button class="ghost snap">1</button><button class="ghost snap">2</button><button class="ghost snap">3</button><button class="ghost snap">4</button><label class="sw" style="margin:0 0 0 4px"><input type="checkbox" id="snapEdit" /> editar</label></div>
   <div class="grp"><span class="lab">MIDI</span><button id="midiEnable" class="ghost">Ativar</button><label class="sw" style="margin:0"><input type="checkbox" id="midiLearn" /> Learn</label><button id="midiClear" class="ghost">Limpar</button><span id="midiStatus">desativado</span><span id="midiMap"></span></div>
   <span class="spacer"></span>
-  <button id="swapOrder" class="ghost">⇄ Ordem OD/Amp</button>
+  <button id="swapOrder" class="ghost"><span class="ico" data-ico="swap"></span> Ordem OD/Amp</button>
 </div>
 
 <div class="manager" id="manager">
@@ -435,9 +448,9 @@
     <header><h2>Looper</h2><span class="sub" id="loopLen"></span></header>
     <div style="font-size:20px;font-weight:700;margin-bottom:12px" id="loopState">vazio</div>
     <div style="display:flex; gap:10px; flex-wrap:wrap">
-      <button id="loopRec" class="btn rec">● Rec / Loop / Overdub</button>
-      <button id="loopStop" class="btn">❚❚ Stop</button>
-      <button id="loopClear" class="btn">✕ Clear</button>
+      <button id="loopRec" class="btn rec"><span class="ico" data-ico="rec"></span> Rec / Loop / Overdub</button>
+      <button id="loopStop" class="btn"><span class="ico" data-ico="pause"></span> Stop</button>
+      <button id="loopClear" class="btn"><span class="ico" data-ico="x"></span> Clear</button>
     </div>
     <div class="loopbar"><i id="loopBar"></i></div>
     <label class="knob" style="max-width:220px"><div class="row"><span>Nível do loop</span><b id="loopLevelVal">1.00</b></div><input type="range" id="loopLevel" min="0" max="1.5" step="0.01" value="1" /></label>
@@ -447,7 +460,7 @@
   <section class="mod" data-mod="rhythm"><div class="card">
     <header><h2>Ritmo</h2><span class="sub">metrônomo + drums</span></header>
     <div style="display:flex; gap:14px; align-items:center; margin-bottom:14px">
-      <button id="transportBtn" class="btn">▶ Iniciar</button>
+      <button id="transportBtn" class="btn"><span class="ico" data-ico="play"></span><span>Iniciar</span></button>
       <label class="knob" style="flex:1;max-width:260px;margin:0"><div class="row"><span>Tempo</span><b id="bpmVal">120 BPM</b></div><input type="range" id="bpm" min="40" max="240" step="1" value="120" /></label>
     </div>
     <label class="sw"><input type="checkbox" id="metroOn" /> Metrônomo</label>
@@ -478,7 +491,7 @@
       <span>Dropouts<b id="perfGlitch">0</b></span>
     </div>
     <div class="logview" id="logView"></div>
-    <button id="logExport" class="mini" style="margin-top:10px">⭳ Exportar log</button>
+    <button id="logExport" class="mini" style="margin-top:10px"><span class="ico" data-ico="download"></span> Exportar log</button>
     <p class="hint">⚠️ Use <b>fone</b> (sem fone, a caixa realimenta o mic). Cadeia: gate → comp → (OD⇄amp) → EQ → cab dual-mic, distorção com <code>oversampling 4×</code>.</p>
   </div></section>
 
