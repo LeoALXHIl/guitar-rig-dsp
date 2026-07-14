@@ -215,8 +215,10 @@
   #accentPick { width:30px; height:30px; padding:0; border:1px solid var(--edge); border-radius:8px; background:none; cursor:pointer; }
   #accentPick::-webkit-color-swatch-wrapper { padding:2px; }
   #accentPick::-webkit-color-swatch { border:none; border-radius:6px; }
-  #splash { position:fixed; inset:0; z-index:3000; background:var(--bg); display:flex; align-items:center; justify-content:center; transition:opacity .5s; }
+  #splash { position:fixed; inset:0; z-index:3000; background:var(--bg); display:flex; align-items:center; justify-content:center;
+            transition:opacity .5s; animation:splashAuto .5s ease 2.5s forwards; }
   #splash.hide { opacity:0; pointer-events:none; }
+  @keyframes splashAuto { to { opacity:0; visibility:hidden; pointer-events:none; } }
   .splash-in { text-align:center; }
   .splash-logo { font-size:56px; animation:pulse 1.2s ease-in-out infinite; }
   .splash-name { font-weight:800; letter-spacing:2px; margin-top:10px;
@@ -236,6 +238,17 @@
 </style>
 </head>
 <body>
+<script>
+  // captura erros de boot e mostra na tela (em vez de travar no splash)
+  window.addEventListener('error', function (e) {
+    var s = document.getElementById('splash'); if (s) s.style.display = 'none';
+    var d = document.getElementById('booterr');
+    if (!d) { d = document.createElement('div'); d.id = 'booterr';
+      d.style.cssText = 'position:fixed;z-index:9999;left:0;right:0;bottom:0;background:#b00020;color:#fff;font:12px/1.5 monospace;padding:10px 14px;white-space:pre-wrap';
+      (document.body || document.documentElement).appendChild(d); }
+    d.textContent = 'ERRO: ' + e.message + '  @ ' + String(e.filename || '').split('/').pop() + ':' + e.lineno;
+  });
+</script>
 <div id="splash"><div class="splash-in">
   <div class="splash-logo">🎸</div>
   <div class="splash-name">guitar-rig-dsp</div>
@@ -244,7 +257,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.8.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.8.1</small></span>
   <button id="power">⏻ Ligar</button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>

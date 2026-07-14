@@ -943,7 +943,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', ()
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.8.0';
+const APP_VERSION = 'v0.8.1';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');

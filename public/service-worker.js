@@ -6,7 +6,7 @@
  * pro cache. O nome do cache carrega a VERSÃO — ao subir uma versão nova, o cache velho
  * é apagado no 'activate' e a UI é avisada da atualização.
  */
-const VERSION = 'v0.8.0';
+const VERSION = 'v0.8.1';
 const CACHE = 'grd-' + VERSION;
 const ASSETS = [
   './', './index.html', './app.js', './amp3d.js', './manifest.webmanifest', './icon.svg',
@@ -15,6 +15,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
+  self.skipWaiting(); // nova versão assume na hora (evita servir cache velho)
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).catch(() => {}));
 });
 
