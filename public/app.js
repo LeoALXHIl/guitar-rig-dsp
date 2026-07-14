@@ -545,6 +545,12 @@ function migratePreset(s) {
     if (s.cab) { s.cab.micB = s.cab.micB || 'none'; s.cab.blend = s.cab.blend ?? 0.5; s.cab.spread = s.cab.spread ?? 0.4; }
     s.v = 2;
   }
+  if (s.v < 3) { // adiciona canal do amp + delay + reverb
+    if (s.amp && s.amp.channel == null) s.amp.channel = s.amp.model === '1' ? 2 : 0;
+    s.delay = s.delay || { time: 0.35, feedback: 0.35, tone: 0.5, mix: 0.3, bypass: true };
+    s.reverb = s.reverb || { size: 0.6, damp: 0.5, mix: 0.25, bypass: true };
+    s.v = 3;
+  }
   return s;
 }
 
@@ -579,14 +585,24 @@ function refreshLabels() {
   if (typeof syncAmp3D === 'function') syncAmp3D();
 }
 
-// --- presets ---
-const dOff = { threshold: -24, ratio: 4, attack: 8, release: 120, makeup: 0, bypass: true };
-const dEq = { low: 0, mid: 0, midFreq: 800, midQ: 1, high: 0, hp: 20, lp: 20000, bypass: true };
+// --- presets de fábrica (v3: canal do amp + delay + reverb + dual-mic) ---
+const gOff = { threshold: -90, release: 120, bypass: true };
+const cOff = { threshold: -24, ratio: 4, attack: 8, release: 120, makeup: 0, bypass: true };
+const eFlat = { low: 0, mid: 0, midFreq: 800, midQ: 1, high: 0, hp: 20, lp: 20000, bypass: true };
+const dOff = { time: 0.35, feedback: 0.35, tone: 0.5, mix: 0.3, bypass: true };
+const rOff = { size: 0.6, damp: 0.5, mix: 0.25, bypass: true };
+const P = (o) => Object.assign({ v: 3, gate: gOff, comp: cOff, od: { drive: 10, tone: 0.6, level: 0.6, bypass: true }, amp: {}, eq: eFlat, delay: dOff, reverb: rOff, master: 0.8, order: ['od', 'amp'] }, o);
+const AMP = (o) => Object.assign({ model: '1', channel: 2, gain: 0.6, bass: 0.5, mid: 0.5, treble: 0.6, presence: 0.45, depth: 0.5, master: 0.6, bright: true, power: true }, o);
+const CAB = (o) => Object.assign({ cab: '4x12', speaker: 'v30', mic: 'sm57', micB: 'none', axis: 0.3, distance: 0.3, blend: 0.5, spread: 0.4, on: true }, o);
 const FACTORY = {
-  '★ Metal moderno (5150)': { v: 2, gate: { threshold: -50, release: 90, bypass: false }, comp: dOff, od: { drive: 20, tone: 0.5, level: 0.8, bypass: false }, amp: { model: '1', gain: 0.85, bass: 0.6, mid: 0.15, treble: 0.7, presence: 0.6, depth: 0.75, master: 0.6, bright: true, power: true }, eq: { low: 0, mid: -2, midFreq: 500, midQ: 1.2, high: 2, hp: 80, lp: 12000, bypass: false }, cab: { cab: '4x12', speaker: 'v30', mic: 'sm57', micB: 'r121', axis: 0.3, distance: 0.25, blend: 0.35, spread: 0.5, on: true }, master: 0.8, order: ['od', 'amp'] },
-  '★ Hard rock (JCM800)': { v: 2, gate: { threshold: -58, release: 150, bypass: false }, comp: dOff, od: { drive: 15, tone: 0.6, level: 0.85, bypass: false }, amp: { model: '0', gain: 0.75, bass: 0.5, mid: 0.55, treble: 0.65, presence: 0.5, depth: 0.4, master: 0.65, bright: true, power: true }, eq: dEq, cab: { cab: '4x12', speaker: 'v30', mic: 'sm57', micB: 'none', axis: 0.25, distance: 0.3, blend: 0.5, spread: 0.4, on: true }, master: 0.8, order: ['od', 'amp'] },
-  '★ Crunch clássico (Plexi-ish)': { v: 2, gate: { threshold: -65, release: 200, bypass: true }, comp: dOff, od: { drive: 8, tone: 0.6, level: 0.5, bypass: true }, amp: { model: '0', gain: 0.45, bass: 0.55, mid: 0.6, treble: 0.6, presence: 0.45, depth: 0.35, master: 0.7, bright: true, power: true }, eq: dEq, cab: { cab: '2x12', speaker: 'green', mic: 'r121', micB: 'none', axis: 0.4, distance: 0.4, blend: 0.5, spread: 0.4, on: true }, master: 0.8, order: ['od', 'amp'] },
-  '★ Funk/Clean comp (Fender-ish)': { v: 2, gate: { threshold: -70, release: 200, bypass: true }, comp: { threshold: -28, ratio: 4, attack: 5, release: 100, makeup: 6, bypass: false }, od: { drive: 4, tone: 0.7, level: 0.5, bypass: true }, amp: { model: '0', gain: 0.2, bass: 0.6, mid: 0.5, treble: 0.7, presence: 0.5, depth: 0.3, master: 0.5, bright: true, power: true }, eq: { low: 1, mid: 0, midFreq: 900, midQ: 1, high: 3, hp: 40, lp: 16000, bypass: false }, cab: { cab: '2x12', speaker: 'green', mic: 'sm57', micB: 'r121', axis: 0.35, distance: 0.35, blend: 0.5, spread: 0.6, on: true }, master: 0.8, order: ['od', 'amp'] },
+  '★ Metal Moderno — 5150 Lead': P({ gate: { threshold: -48, release: 80, bypass: false }, od: { drive: 22, tone: 0.5, level: 0.85, bypass: false }, amp: AMP({ channel: 2, gain: 0.85, mid: 0.15, treble: 0.7, presence: 0.6, depth: 0.78 }), eq: { low: 0, mid: -3, midFreq: 500, midQ: 1.3, high: 2, hp: 85, lp: 11000, bypass: false }, cab: CAB({ micB: 'r121', axis: 0.32, distance: 0.22, blend: 0.35, spread: 0.55 }), reverb: { size: 0.4, damp: 0.7, mix: 0.12, bypass: false } }),
+  '★ Djent Apertado — 5150': P({ gate: { threshold: -44, release: 60, bypass: false }, od: { drive: 30, tone: 0.55, level: 0.9, bypass: false }, amp: AMP({ channel: 2, gain: 0.9, bass: 0.5, mid: 0.2, treble: 0.72, presence: 0.65, depth: 0.6 }), eq: { low: -1, mid: -2, midFreq: 650, midQ: 1.4, high: 3, hp: 95, lp: 10000, bypass: false }, cab: CAB({ micB: 'sm57', axis: 0.4, distance: 0.2, blend: 0.5, spread: 0.35 }) }),
+  '★ Hard Rock — JCM800': P({ gate: { threshold: -58, release: 140, bypass: false }, od: { drive: 14, tone: 0.62, level: 0.85, bypass: false }, amp: AMP({ model: '0', channel: 0, gain: 0.75, mid: 0.58, treble: 0.66, presence: 0.5, depth: 0.4, master: 0.68 }), cab: CAB({ axis: 0.25, distance: 0.3 }), reverb: { size: 0.35, damp: 0.6, mix: 0.1, bypass: false } }),
+  '★ Crunch Clássico — Plexi': P({ amp: AMP({ model: '0', channel: 0, gain: 0.45, bass: 0.55, mid: 0.62, treble: 0.62, presence: 0.45, depth: 0.32, master: 0.72 }), cab: CAB({ cab: '2x12', speaker: 'green', mic: 'r121', axis: 0.42, distance: 0.4 }), reverb: { size: 0.5, damp: 0.4, mix: 0.16, bypass: false } }),
+  '★ Lead Cantante — 5150 + Delay': P({ gate: { threshold: -52, release: 120, bypass: false }, comp: { threshold: -26, ratio: 3, attack: 10, release: 150, makeup: 3, bypass: false }, od: { drive: 16, tone: 0.55, level: 0.8, bypass: false }, amp: AMP({ channel: 2, gain: 0.8, mid: 0.4, treble: 0.66, presence: 0.55, depth: 0.55 }), eq: { low: 0, mid: 2, midFreq: 900, midQ: 0.8, high: 1, hp: 90, lp: 12000, bypass: false }, cab: CAB({ micB: 'r121', blend: 0.4, spread: 0.5 }), delay: { time: 0.42, feedback: 0.32, tone: 0.5, mix: 0.28, bypass: false }, reverb: { size: 0.6, damp: 0.5, mix: 0.2, bypass: false } }),
+  '★ Blues Crunch — 5150 Crunch': P({ comp: { threshold: -24, ratio: 3, attack: 12, release: 160, makeup: 2, bypass: false }, amp: AMP({ channel: 1, gain: 0.55, bass: 0.55, mid: 0.6, treble: 0.6, presence: 0.4, depth: 0.4 }), cab: CAB({ cab: '2x12', speaker: 'green', mic: 'r121', axis: 0.45, distance: 0.4 }), reverb: { size: 0.55, damp: 0.45, mix: 0.18, bypass: false } }),
+  '★ Clean Funk — 5150 Clean': P({ comp: { threshold: -28, ratio: 5, attack: 5, release: 100, makeup: 6, bypass: false }, amp: AMP({ channel: 0, gain: 0.3, bass: 0.55, mid: 0.5, treble: 0.72, presence: 0.5, depth: 0.3, master: 0.55 }), eq: { low: 1, mid: -1, midFreq: 800, midQ: 1, high: 3, hp: 45, lp: 16000, bypass: false }, cab: CAB({ cab: '2x12', speaker: 'green', mic: 'sm57', micB: 'r121', axis: 0.35, distance: 0.35, blend: 0.5, spread: 0.7 }), delay: { time: 0.3, feedback: 0.2, tone: 0.6, mix: 0.15, bypass: false } }),
+  '★ Ambient Clean — 5150 + Space': P({ amp: AMP({ channel: 0, gain: 0.25, bass: 0.5, mid: 0.45, treble: 0.7, presence: 0.5, depth: 0.3, master: 0.5 }), eq: { low: 0, mid: 0, midFreq: 800, midQ: 1, high: 2, hp: 60, lp: 15000, bypass: false }, cab: CAB({ cab: '1x12', speaker: 'green', mic: 'r121', micB: 'sm57', axis: 0.4, distance: 0.5, blend: 0.5, spread: 0.8 }), delay: { time: 0.55, feedback: 0.45, tone: 0.45, mix: 0.35, bypass: false }, reverb: { size: 0.85, damp: 0.35, mix: 0.4, bypass: false } }),
 };
 // ===========================================================================
 // Sprint 3 — Preset Manager (IndexedDB + busca/tags/favoritos), A/B, Undo/Redo,
@@ -1018,7 +1034,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.15.0';
+const APP_VERSION = 'v0.16.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
