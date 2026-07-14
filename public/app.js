@@ -228,6 +228,7 @@ function pushCompParams() {
   comp.parameters.get('bypass').setValueAtTime($('compBypass').checked ? 1 : 0, t);
 }
 function pushAmpParams() {
+  if (typeof syncAmp3D === 'function') syncAmp3D(); // mantém os knobs 3D em sincronia
   if (!amp) return; const t = ctx.currentTime;
   const set = (n, v) => amp.parameters.get(n).setTargetAtTime(v, t, 0.02);
   set('gain', +$('ampGain').value); set('bass', +$('bass').value); set('mid', +$('mid').value);
@@ -544,6 +545,7 @@ function refreshLabels() {
   $('spreadVal').textContent = Math.round(cabSettings.spread * 100) + '%';
   if (typeof syncChainDots === 'function') syncChainDots();
   if (typeof syncKnobs === 'function') syncKnobs();
+  if (typeof syncAmp3D === 'function') syncAmp3D();
 }
 
 // --- presets ---
@@ -985,7 +987,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.12.0';
+const APP_VERSION = 'v0.13.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1010,7 +1012,13 @@ initKnobs();
 initVU();
 initBg();
 setFaceplate();
-if (window.Amp3D && $('amp3d')) { Amp3D.init($('amp3d')); Amp3D.setModel(+$('ampModel').value); Amp3D.setAccent(cssVar('--accent')); }
+const KN3D = ['ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster']; // ordem = knobs 3D (esq→dir)
+function syncAmp3D() { if (window.Amp3D && Amp3D.setValues) Amp3D.setValues(KN3D.map((id) => +$(id).value)); }
+if (window.Amp3D && $('amp3d')) {
+  Amp3D.init($('amp3d')); Amp3D.setModel(+$('ampModel').value); Amp3D.setAccent(cssVar('--accent'));
+  Amp3D.onKnob = (i, v) => { const el = $(KN3D[i]); if (el) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); } }; // girar knob 3D → som muda
+  syncAmp3D();
+}
 selectModule('amp');   // amp em foco por padrão
 syncChainDots();
 snapshotForUndo(); // estado inicial no histórico

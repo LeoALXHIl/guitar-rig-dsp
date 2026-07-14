@@ -39,6 +39,25 @@
     }
   }
 
+  // cilindro ao longo do eixo Z (usado nos knobs)
+  function cyl(g, cx, cy, cz, r, d, col) {
+    const segs = 16, zf = cz + d / 2, zb = cz - d / 2, cf = g.pos.length / 3;
+    g.pos.push(cx, cy, zf); g.nrm.push(0, 0, 1); g.col.push(...col); // centro da tampa
+    for (let i = 0; i <= segs; i++) { const a = i / segs * 2 * Math.PI; g.pos.push(cx + Math.cos(a) * r, cy + Math.sin(a) * r, zf); g.nrm.push(0, 0, 1); g.col.push(...col); }
+    for (let i = 1; i <= segs; i++) g.idx.push(cf, cf + i, cf + i + 1);
+    for (let i = 0; i < segs; i++) {
+      const a0 = i / segs * 2 * Math.PI, a1 = (i + 1) / segs * 2 * Math.PI;
+      const x0 = Math.cos(a0), y0 = Math.sin(a0), x1 = Math.cos(a1), y1 = Math.sin(a1), b = g.pos.length / 3;
+      g.pos.push(cx + x0 * r, cy + y0 * r, zf, cx + x1 * r, cy + y1 * r, zf, cx + x1 * r, cy + y1 * r, zb, cx + x0 * r, cy + y0 * r, zb);
+      g.nrm.push(x0, y0, 0, x1, y1, 0, x1, y1, 0, x0, y0, 0);
+      g.col.push(...col, ...col, ...col, ...col);
+      g.idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    }
+  }
+
+  // 7 knobs operáveis no painel (Gain/Bass/Mid/Treble/Presence/Depth/Master)
+  const KN = []; for (let i = 0; i < 7; i++) KN.push({ x: -0.93 + i * 0.31, y: 0.42, z: 0.5, val: 0.5 });
+
   function buildScene(model, accent) {
     const g = { pos: [], nrm: [], col: [], idx: [] };
     const body = model === 1 ? [0.10, 0.10, 0.13] : [0.11, 0.11, 0.12];
@@ -48,12 +67,13 @@
     box(g, 0, -0.12, 0.49, 1.85, 0.72, 0.04, grille);          // grille frontal
     box(g, 0, 0.42, 0.47, 1.95, 0.28, 0.06, panel);            // painel de controle
     box(g, 0, 0.62, 0, 2.24, 0.05, 0.99, [0.03, 0.03, 0.03]);  // tampo
-    // cantoneiras/pés
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(g, sx * 1.03, -0.6, sz * 0.42, 0.16, 0.12, 0.16, [0.02, 0.02, 0.02]);
-    // knobs no painel
-    for (let i = 0; i < 6; i++) box(g, -0.8 + i * 0.32, 0.42, 0.52, 0.11, 0.11, 0.06, accent);
-    // barra "logo" com o acento
-    box(g, 0.7, 0.42, 0.515, 0.5, 0.05, 0.02, accent);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(g, sx * 1.03, -0.6, sz * 0.42, 0.16, 0.12, 0.16, [0.02, 0.02, 0.02]); // pés
+    // knobs (cilindro) + ponteiro (notch) na posição do valor
+    for (const k of KN) {
+      cyl(g, k.x, k.y, 0.47, 0.1, 0.09, [0.30, 0.31, 0.34]);
+      const ang = (0.75 + k.val * 1.5) * Math.PI;              // 135°..405°
+      box(g, k.x + Math.cos(ang) * 0.058, k.y + Math.sin(ang) * 0.058, 0.53, 0.028, 0.028, 0.03, accent);
+    }
     return g;
   }
 
@@ -66,6 +86,22 @@
   let gl, prog, buf = {}, loc = {}, canvas, running = false;
   let yaw = -0.5, pitch = -0.18, dist = 4.2, drag = false, lx = 0, ly = 0, idle = 0;
   let model = 0, accent = [0.88, 0.64, 0.29], nIdx = 0;
+  let grab = -1, dirty = false, curView = null, curProj = null; // interação com knobs 3D
+
+  // projeta um ponto do mundo pra pixels CSS do canvas (usa as matrizes do último frame)
+  function project(p) {
+    if (!curView || !curProj) return null;
+    const mv = M.mul(curProj, curView), x = p[0], y = p[1], z = p[2];
+    const cw = mv[3] * x + mv[7] * y + mv[11] * z + mv[15]; if (cw <= 0) return null;
+    const ndx = (mv[0] * x + mv[4] * y + mv[8] * z + mv[12]) / cw;
+    const ndy = (mv[1] * x + mv[5] * y + mv[9] * z + mv[13]) / cw;
+    return { x: (ndx * 0.5 + 0.5) * canvas.clientWidth, y: (0.5 - ndy * 0.5) * canvas.clientHeight };
+  }
+  function pickKnob(px, py) {
+    let best = -1, bd = 36 * 36;
+    for (let i = 0; i < KN.length; i++) { const s = project([KN[i].x, KN[i].y, 0.5]); if (!s) continue; const dx = s.x - px, dy = s.y - py, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+    return best;
+  }
 
   function compile(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error('shader: ' + gl.getShaderInfoLog(s)); return s; }
 
@@ -87,9 +123,11 @@
     requestAnimationFrame(frame);
     if (canvas.offsetParent === null) return; // módulo escondido → não desenha
     if (canvas.width !== (canvas.clientWidth * Math.min(2, devicePixelRatio || 1) | 0)) resize();
-    if (!drag) { idle += 1; if (idle > 40) yaw += 0.004; } // giro lento quando parado
+    if (dirty) { upload(); dirty = false; }   // reconstrói se um knob girou
+    if (!drag && grab < 0) { idle += 1; if (idle > 40) yaw += 0.004; } // giro lento quando parado
     const view = M.mul(M.mul(M.trans(0, -0.05, -dist), M.rotX(pitch)), M.rotY(yaw));
     const proj = M.persp(0.9, canvas.width / canvas.height, 0.1, 100);
+    curView = view; curProj = proj;           // guarda p/ projeção dos knobs
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.uniformMatrix4fv(loc.uProj, false, new Float32Array(proj));
     gl.uniformMatrix4fv(loc.uView, false, new Float32Array(view));
@@ -113,10 +151,23 @@
         loc.uProj = gl.getUniformLocation(prog, 'uProj'); loc.uView = gl.getUniformLocation(prog, 'uView');
         gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 0);
         upload(); resize();
-        // órbita
-        cv.addEventListener('pointerdown', (e) => { drag = true; idle = 0; lx = e.clientX; ly = e.clientY; cv.setPointerCapture(e.pointerId); });
-        cv.addEventListener('pointermove', (e) => { if (!drag) return; yaw += (e.clientX - lx) * 0.01; pitch += (e.clientY - ly) * 0.01; pitch = Math.max(-0.8, Math.min(0.5, pitch)); lx = e.clientX; ly = e.clientY; });
-        cv.addEventListener('pointerup', () => { drag = false; idle = 0; });
+        // pointerdown: se pegou perto de um knob → gira o knob; senão → orbita
+        cv.addEventListener('pointerdown', (e) => {
+          const r = cv.getBoundingClientRect(), k = pickKnob(e.clientX - r.left, e.clientY - r.top);
+          if (k >= 0) grab = k; else drag = true;
+          idle = 0; lx = e.clientX; ly = e.clientY; cv.setPointerCapture(e.pointerId);
+        });
+        cv.addEventListener('pointermove', (e) => {
+          if (grab >= 0) {
+            KN[grab].val = Math.max(0, Math.min(1, KN[grab].val - (e.clientY - ly) * 0.006));
+            ly = e.clientY; dirty = true;
+            if (Amp3D.onKnob) Amp3D.onKnob(grab, KN[grab].val);
+            return;
+          }
+          if (!drag) return;
+          yaw += (e.clientX - lx) * 0.01; pitch += (e.clientY - ly) * 0.01; pitch = Math.max(-0.8, Math.min(0.5, pitch)); lx = e.clientX; ly = e.clientY;
+        });
+        cv.addEventListener('pointerup', () => { drag = false; grab = -1; idle = 0; });
         cv.addEventListener('wheel', (e) => { e.preventDefault(); dist = Math.max(2.6, Math.min(7, dist + (e.deltaY > 0 ? 0.4 : -0.4))); }, { passive: false });
         window.addEventListener('resize', resize);
         running = true; frame();
@@ -125,6 +176,8 @@
     },
     setModel(n) { model = n | 0; if (gl) upload(); },
     setAccent(hex) { accent = hexRGB(hex); if (gl) upload(); },
+    setValues(arr) { for (let i = 0; i < KN.length && i < arr.length; i++) KN[i].val = arr[i]; dirty = true; }, // sincroniza knobs 3D com os do painel
+    onKnob: null, // callback(index, valor 0..1) quando o usuário gira um knob 3D
   };
   if (typeof window !== 'undefined') window.Amp3D = Amp3D;
 })();
