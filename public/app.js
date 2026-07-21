@@ -233,7 +233,6 @@ function pushCompParams() {
   comp.parameters.get('bypass').setValueAtTime($('compBypass').checked ? 1 : 0, t);
 }
 function pushAmpParams() {
-  if (typeof syncAmp3D === 'function') syncAmp3D(); // mantém os knobs 3D em sincronia
   if (!amp) return; const t = ctx.currentTime;
   const set = (n, v) => amp.parameters.get(n).setTargetAtTime(v, t, 0.02);
   set('gain', +$('ampGain').value); set('bass', +$('bass').value); set('mid', +$('mid').value);
@@ -436,7 +435,6 @@ $('ampChannels').addEventListener('click', (e) => {
 });
 $('ampModel').addEventListener('change', () => {
   $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag;
-  if (window.Amp3D) Amp3D.setModel(+$('ampModel').value);
   ampChannel = +$('ampModel').value === 1 ? 2 : 0; // 5150 abre no Lead; 800 canal único
   setFaceplate();
   if (running) withDuck(pushAmpParams);
@@ -558,7 +556,6 @@ function refreshLabels() {
   const two = ['drive', 'tone', 'level', 'ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster', 'master'];
   two.forEach((id) => { const v = $(id + 'Val'); if (v) v.textContent = (+$(id).value).toFixed(id === 'drive' ? 0 : 2); });
   $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag;
-  if (window.Amp3D) Amp3D.setModel(+$('ampModel').value);
   if (typeof setFaceplate === 'function') setFaceplate();
   $('axisVal').textContent = +$('axis').value < 0.5 ? 'on-axis' : 'off-axis';
   $('distanceVal').textContent = +$('distance').value < 0.5 ? 'perto' : 'longe';
@@ -582,7 +579,6 @@ function refreshLabels() {
   $('spreadVal').textContent = Math.round(cabSettings.spread * 100) + '%';
   if (typeof syncChainDots === 'function') syncChainDots();
   if (typeof syncKnobs === 'function') syncKnobs();
-  if (typeof syncAmp3D === 'function') syncAmp3D();
 }
 
 // --- presets de fábrica (v3: canal do amp + delay + reverb + dual-mic) ---
@@ -1000,7 +996,6 @@ function applyTheme(name) {
   document.documentElement.dataset.theme = name;
   try { localStorage.setItem('grd-theme', name); } catch {}
   syncKnobs();
-  if (window.Amp3D) Amp3D.setAccent(cssVar('--accent'));
 }
 $('themeSel').addEventListener('change', () => applyTheme($('themeSel').value));
 (function initTheme() {
@@ -1034,7 +1029,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.18.0';
+const APP_VERSION = 'v0.18.1';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1059,13 +1054,6 @@ initKnobs();
 initVU();
 initBg();
 setFaceplate();
-const KN3D = ['ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster']; // ordem = knobs 3D (esq→dir)
-function syncAmp3D() { if (window.Amp3D && Amp3D.setValues) Amp3D.setValues(KN3D.map((id) => +$(id).value)); }
-if (window.Amp3D && $('amp3d')) {
-  Amp3D.init($('amp3d')); Amp3D.setModel(+$('ampModel').value); Amp3D.setAccent(cssVar('--accent'));
-  Amp3D.onKnob = (i, v) => { const el = $(KN3D[i]); if (el) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); } }; // girar knob 3D → som muda
-  syncAmp3D();
-}
 selectModule('amp');   // amp em foco por padrão
 syncChainDots();
 snapshotForUndo(); // estado inicial no histórico
@@ -1289,7 +1277,7 @@ function loadPedalArt() {
 }
 loadPedalArt();
 
-// arte real do amp por modelo (amps/amp0.png / amp1.png), senão mantém faceplate CSS + 3D
+// arte real do amp por modelo (amps/amp0.png / amp1.png), senão mantém faceplate CSS
 function loadAmpArt() {
   const card = document.querySelector('[data-mod="amp"] .card'); if (!card) return;
   const url = `amps/amp${+$('ampModel').value}.png`, img = new Image();
@@ -1298,66 +1286,6 @@ function loadAmpArt() {
   img.src = url;
 }
 loadAmpArt();
-
-// visualizador Sketchfab opcional (lazy) — alterna com o 3D próprio
-const SK_MODEL = 'cdd14da4ff854ff6baf8ed501b2d8296'; // Fender Champion 110 (Antoine)
-$('sk3dToggle').addEventListener('click', () => {
-  const f = $('sk3d'), c = $('amp3d'), show = f.style.display === 'none';
-  if (show) {
-    if (!f.src) f.src = `https://sketchfab.com/models/${SK_MODEL}/embed?ui_infos=0&ui_hint=0&autostart=1&transparent=1`;
-    f.style.display = 'block'; c.style.display = 'none'; $('sk3dToggle').textContent = 'Voltar ao 3D próprio';
-  } else {
-    f.style.display = 'none'; c.style.display = 'block'; $('sk3dToggle').textContent = 'Ver modelo Sketchfab';
-  }
-});
-
-// visualizador de modelo .glb real + hotspots operáveis (lazy)
-let glbLoaded = false, hsPlaceIdx = -1;
-const HS_LABELS = ['Gain', 'Bass', 'Mid', 'Treb', 'Pres', 'Depth', 'Vol']; // = ordem de KN3D
-function buildGlb() {
-  const wrap = $('glbWrap');
-  const s = document.createElement('script'); s.type = 'module'; s.src = 'https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js'; document.head.appendChild(s);
-  const hs = HS_LABELS.map((l, i) => `<button class="hs unplaced" slot="hotspot-k${i}" data-i="${i}" data-position="0m 0.1m 0m" data-normal="0m 0m 1m" title="${l} — arraste p/ mexer">${l}</button>`).join('');
-  wrap.innerHTML = `<model-viewer id="mv" src="models/amp.glb" camera-controls auto-rotate touch-action="pan-y" interaction-prompt="none" style="width:100%;height:340px;background:#0c0c0e;border-radius:12px">${hs}</model-viewer>
-    <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-      <button id="hsPlace" class="mini">Posicionar knobs</button>
-      <span id="hsStatus" style="font-size:12px;color:var(--dim)">Clique "Posicionar knobs" e toque em cada knob do modelo.</span>
-    </div>`;
-  const mv = $('mv');
-  let saved = []; try { saved = JSON.parse(localStorage.getItem('grd-glb-hs') || '[]'); } catch {}
-  const applySaved = () => saved.forEach((p, i) => { if (!p) return; const b = mv.querySelector(`[data-i="${i}"]`); if (b) { b.dataset.position = p.pos; b.dataset.normal = p.normal; b.classList.remove('unplaced'); } });
-  mv.addEventListener('load', applySaved);
-  mv.addEventListener('error', () => { wrap.innerHTML = '<div style="color:var(--dim);font-size:13px;padding:20px">Não carregou o <b>amp.glb</b>. Confira o arquivo em public/models/ e a internet (o viewer vem de CDN).</div>'; });
-  $('hsPlace').addEventListener('click', () => { hsPlaceIdx = 0; $('hsStatus').textContent = `Clique no knob "${HS_LABELS[0]}" no modelo…`; });
-  mv.addEventListener('click', (e) => {
-    if (hsPlaceIdx < 0 || !mv.positionAndNormalFromPoint) return;
-    const r = mv.getBoundingClientRect(), res = mv.positionAndNormalFromPoint(e.clientX - r.left, e.clientY - r.top);
-    if (!res) { $('hsStatus').textContent = 'Clique em cima do amp.'; return; }
-    const b = mv.querySelector(`[data-i="${hsPlaceIdx}"]`);
-    b.dataset.position = res.position.toString(); b.dataset.normal = res.normal.toString(); b.classList.remove('unplaced');
-    saved[hsPlaceIdx] = { pos: res.position.toString(), normal: res.normal.toString() };
-    try { localStorage.setItem('grd-glb-hs', JSON.stringify(saved)); } catch {}
-    hsPlaceIdx++;
-    if (hsPlaceIdx >= HS_LABELS.length) { hsPlaceIdx = -1; $('hsStatus').textContent = 'Pronto! Arraste cada knob pra mexer o som.'; }
-    else { $('hsStatus').textContent = `Clique no knob "${HS_LABELS[hsPlaceIdx]}"…`; }
-  });
-  // arrastar um hotspot = mexer o parâmetro (dispara o input real → DSP + painel)
-  wrap.addEventListener('pointerdown', (e) => {
-    const b = e.target.closest('.hs'); if (!b || hsPlaceIdx >= 0) return;
-    e.stopPropagation(); e.preventDefault();
-    const el = $(KN3D[+b.dataset.i]); let ly = e.clientY;
-    const move = (ev) => { el.value = Math.max(0, Math.min(1, +el.value - (ev.clientY - ly) * 0.006)); ly = ev.clientY; el.dispatchEvent(new Event('input', { bubbles: true })); };
-    const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
-    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
-  });
-}
-$('glbToggle').addEventListener('click', () => {
-  const wrap = $('glbWrap'), c = $('amp3d'), f = $('sk3d'), show = wrap.style.display === 'none';
-  if (!show) { wrap.style.display = 'none'; c.style.display = 'block'; $('glbToggle').textContent = 'Modelo real (.glb)'; return; }
-  if (!glbLoaded) { glbLoaded = true; buildGlb(); }
-  wrap.style.display = 'block'; c.style.display = 'none'; f.style.display = 'none';
-  $('glbToggle').textContent = 'Voltar ao 3D próprio';
-});
 
 // ---- compartilhar tom por link (preset codificado no #hash da URL) ----
 const b64e = (s) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
