@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import toneHandler from './api/tone.js'; // mesma função serverless da Vercel, reusada localmente
 
 const PORT = 8124; // 8123 é o RigTone NAM; usamos 8124 pra rodar os dois lado a lado
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'public');
@@ -25,6 +26,18 @@ const MIME = {
 
 const server = createServer(async (req, res) => {
   try {
+    // Assistente de IA: mesma rota /api/tone da Vercel, atendida localmente reusando api/tone.js.
+    // Precisa da variável de ambiente OPENAI_API_KEY (use uma chave NOVA):
+    //   PowerShell:  $env:OPENAI_API_KEY="sk-nova"; node server.js
+    if (req.url.split('?')[0] === '/api/tone') {
+      res.status = (c) => { res.statusCode = c; return res; };
+      res.json = (o) => { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(o)); };
+      let raw = '';
+      req.on('data', (ch) => { raw += ch; });
+      req.on('end', () => { req.body = raw; toneHandler(req, res); });
+      return;
+    }
+
     // normaliza e impede path traversal (../)
     const urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     let rel = normalize(urlPath).replace(/^(\.\.[/\\])+/, '');
