@@ -1034,7 +1034,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.16.0';
+const APP_VERSION = 'v0.17.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1201,6 +1201,7 @@ const ICONS = {
   upload: SVG('<path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>'),
   trash: SVG('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'),
   layers: SVG('<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/>'),
+  link: SVG('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>'),
   undo: SVG('<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/>'),
   redo: SVG('<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h1"/>'),
   swap: SVG('<path d="m17 3 4 4-4 4"/><path d="M21 7H7"/><path d="m7 21-4-4 4-4"/><path d="M3 17h14"/>'),
@@ -1356,5 +1357,22 @@ $('glbToggle').addEventListener('click', () => {
   wrap.style.display = 'block'; c.style.display = 'none'; f.style.display = 'none';
   $('glbToggle').textContent = 'Voltar ao 3D próprio';
 });
+
+// ---- compartilhar tom por link (preset codificado no #hash da URL) ----
+const b64e = (s) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64d = (s) => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
+$('shareBtn').addEventListener('click', async () => {
+  const code = b64e(JSON.stringify(collectState()));
+  const url = location.origin + location.pathname + '#t=' + code;
+  try { await navigator.clipboard.writeText(url); toast('🔗 Link do tom copiado! Cole e mande pra quem quiser.'); }
+  catch { toast('Copie o link:', 'Abrir', () => window.prompt('Link do tom:', url)); }
+  history.replaceState(null, '', url);
+});
+(function applyHashTone() {
+  const m = location.hash.match(/[#&]t=([^&]+)/);
+  if (!m) return;
+  try { const s = JSON.parse(b64d(m[1])); applyAndMark(s); if (typeof toast === 'function') toast('Tom carregado do link ✓'); }
+  catch (e) { Log.warn('link de tom inválido: ' + e.message); }
+})();
 
 Log.info('app carregado ' + APP_VERSION);
