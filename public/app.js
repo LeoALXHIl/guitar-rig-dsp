@@ -1034,7 +1034,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.17.0';
+const APP_VERSION = 'v0.18.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1202,6 +1202,7 @@ const ICONS = {
   trash: SVG('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'),
   layers: SVG('<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/>'),
   link: SVG('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>'),
+  ai: SVG('<path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7z"/><path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z"/>'),
   undo: SVG('<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/>'),
   redo: SVG('<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h1"/>'),
   swap: SVG('<path d="m17 3 4 4-4 4"/><path d="M21 7H7"/><path d="m7 21-4-4 4-4"/><path d="M3 17h14"/>'),
@@ -1374,5 +1375,27 @@ $('shareBtn').addEventListener('click', async () => {
   try { const s = JSON.parse(b64d(m[1])); applyAndMark(s); if (typeof toast === 'function') toast('Tom carregado do link ✓'); }
   catch (e) { Log.warn('link de tom inválido: ' + e.message); }
 })();
+
+// ---- Assistente de Tom por IA (chama /api/tone; a chave fica no servidor) ----
+const defaultPreset = () => P({ amp: AMP({}), cab: CAB({}) });
+function mergePreset(base, over) {
+  const out = JSON.parse(JSON.stringify(base));
+  for (const k in over) { const v = over[k]; if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = Object.assign(out[k] || {}, v); else out[k] = v; }
+  return out;
+}
+async function generateTone(desc) {
+  toast('Gerando tom com IA…');
+  try {
+    const r = await fetch('/api/tone', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: desc }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    applyAndMark(mergePreset(defaultPreset(), j.preset || {}));
+    toast('Tom gerado ✓ — ' + desc);
+  } catch (e) { toast('IA indisponível: ' + e.message + ' (funciona no deploy Vercel com a OPENAI_API_KEY configurada).'); }
+}
+$('aiBtn').addEventListener('click', () => {
+  const d = window.prompt('Descreve o som que você quer:\n(ex.: "metal moderno pesado e apertado", "clean funk cristalino", "lead cantante com delay")');
+  if (d && d.trim()) generateTone(d.trim());
+});
 
 Log.info('app carregado ' + APP_VERSION);
