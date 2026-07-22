@@ -17,6 +17,7 @@ Escolha valores MUSICAIS e responda SOMENTE com um objeto JSON (sem markdown, se
 - e as seções relevantes abaixo. Chaves e faixas válidas:
 
 od:     { drive:1..100, tone:0..1, level:0..1, bypass:bool }        // overdrive/booster
+fuzz:   { sustain:0..1, tone:0..1, level:0..1, bypass:bool }        // fuzz Big Muff-style (denso/sustentado; tone escava o médio). Use p/ stoner/doom/leads gordos; senão bypass:true
 amp:    { model:"0"|"1"|"2"|"3", channel:0..2, gain:0..1, bass:0..1, mid:0..1, treble:0..1,
           presence:0..1, depth:0..1, master:0..1, bright:bool, power:true }
         // model "0" = Marshall-ish (JCM800), canal sempre 0.

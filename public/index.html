@@ -332,7 +332,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.20.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.21.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -380,6 +380,8 @@
   <span class="link"></span>
   <button class="chip" data-mod="comp" data-sw="compBypass" data-inv="1"><span class="dot"></span>Comp</button>
   <span class="link"></span>
+  <button class="chip" data-mod="fuzz" data-sw="fuzzBypass" data-inv="1"><span class="dot"></span>Fuzz</button>
+  <span class="link"></span>
   <button class="chip" id="chipOD" data-mod="od" data-sw="odBypass" data-inv="1"><span class="dot"></span>Drive</button>
   <span class="link"></span>
   <button class="chip" id="chipAMP" data-mod="amp" data-sw="ampPower" data-inv="0"><span class="dot"></span>Amp</button>
@@ -424,6 +426,18 @@
     </div>
     <div class="field"><span class="lab">Redução (GR)</span><div class="meter"><i id="compGr" style="background:linear-gradient(90deg,#4a9de0,#e0a24a)"></i></div></div>
     <label class="sw"><input type="checkbox" id="compBypass" checked /> Bypass</label>
+  </div></section>
+
+  <!-- OVERDRIVE -->
+  <!-- FUZZ -->
+  <section class="mod" data-mod="fuzz"><div class="card">
+    <header><h2>Fuzz</h2><span class="sub">big muff-style · OS 4×</span></header>
+    <div class="knobs big">
+      <label class="knob"><div class="row"><span>Sustain</span><b id="fuzzSustainVal">0.60</b></div><input type="range" id="fuzzSustain" min="0" max="1" step="0.01" value="0.6" /></label>
+      <label class="knob"><div class="row"><span>Tone</span><b id="fuzzToneVal">0.50</b></div><input type="range" id="fuzzTone" min="0" max="1" step="0.01" value="0.5" /></label>
+      <label class="knob"><div class="row"><span>Level</span><b id="fuzzLevelVal">0.60</b></div><input type="range" id="fuzzLevel" min="0" max="1" step="0.01" value="0.6" /></label>
+    </div>
+    <label class="sw"><input type="checkbox" id="fuzzBypass" checked /> Bypass</label>
   </div></section>
 
   <!-- OVERDRIVE -->
