@@ -37,9 +37,14 @@ const CABS = {
   '2x12': { lenMs: 50, decayMs: 9, hp: 85, resHz: 100, resGain: 5 },
   '1x12': { lenMs: 42, decayMs: 7, hp: 95, resHz: 120, resGain: 4 },
 };
+// breakup = quebra de cone: cluster de picos/vales irregulares nos médios-agudos (a "cara" do falante)
 const SPEAKERS = {
-  v30: { bodyHz: 480, bodyGain: -3, presHz: 2600, presGain: 6, topHz: 5200 },
-  green: { bodyHz: 520, bodyGain: 4, presHz: 1800, presGain: 2, topHz: 4400 },
+  v30:   { bodyHz: 480, bodyGain: -3, presHz: 2600, presGain: 6, topHz: 5200,
+           breakup: [[1500, 1.8, 3], [2100, 2.2, -4], [2900, 2.5, 5], [3800, 2.2, -3], [4600, 2.0, 2]] },
+  green: { bodyHz: 520, bodyGain: 4, presHz: 1800, presGain: 2, topHz: 4400,
+           breakup: [[1400, 1.6, 2], [2200, 2.0, -2], [3000, 2.0, 2], [3900, 1.8, -3]] },
+  cream: { bodyHz: 500, bodyGain: 1, presHz: 2200, presGain: 4, topHz: 4900,
+           breakup: [[1600, 1.8, 2], [2400, 2.2, 3], [3300, 2.2, -3], [4400, 2.0, 2]] },
 };
 const MICS = {
   sm57: { pk: [[5500, 1.0, 5], [3000, 0.8, 2]], shelf: [120, -2], topHz: 6500 },
@@ -74,11 +79,20 @@ async function makeCabMicIR(sr, micModel) {
   bq('peaking', C.resHz, 1.1, C.resGain + (1 - cabSettings.distance) * 2);
   bq('peaking', S.bodyHz, 1.0, S.bodyGain);
   bq('peaking', S.presHz, 1.2, S.presGain);
+  for (const [f, q, g] of (S.breakup || [])) bq('peaking', f, q, g);   // quebra de cone (assinatura do falante)
   for (const [f, q, g] of M.pk) bq('peaking', f, q, g);
   bq('lowshelf', M.shelf[0], null, M.shelf[1]);
   const axisTop = 8000 - cabSettings.axis * 5500;
   bq('lowpass', Math.min(S.topHz, M.topHz, axisTop), 0.8);
-  let prev = src; for (const n of nodes) { prev.connect(n); prev = n; } prev.connect(off.destination); src.start();
+  let prev = src; for (const n of nodes) { prev.connect(n); prev = n; }
+  // saída DIRETA + reflexão de proximidade → comb filter (notches que se movem com a distância do mic)
+  prev.connect(off.destination);
+  const combDelay = off.createDelay(0.02);
+  combDelay.delayTime.value = (0.08 + cabSettings.distance * 0.5) / 1000;   // 0.08..0.58 ms
+  const combGain = off.createGain();
+  combGain.gain.value = -0.4 * (0.25 + cabSettings.distance * 0.75);        // mais profundo quanto mais longe
+  prev.connect(combDelay).connect(combGain).connect(off.destination);
+  src.start();
   const rendered = await off.startRendering();
   const ir = rendered.getChannelData(0);
   let sum = 0; for (let i = 0; i < ir.length; i++) sum += ir[i] * ir[i];
@@ -1083,7 +1097,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.23.1';
+const APP_VERSION = 'v0.24.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');

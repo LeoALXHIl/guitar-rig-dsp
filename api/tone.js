@@ -27,7 +27,7 @@ amp:    { model:"0"|"1"|"2"|"3", channel:0..2, gain:0..1, bass:0..1, mid:0..1, t
 gate:   { threshold:-90..0, release:10..600, bypass:bool }          // noise gate (dB, ms)
 comp:   { threshold:-60..0, ratio:1..20, attack:0.1..100, release:10..1000, makeup:0..24, bypass:bool }
 eq:     { low:-18..18, mid:-18..18, midFreq:200..5000, midQ:0.2..8, high:-18..18, hp:20..400, lp:2000..20000, bypass:bool }
-cab:    { cab:"4x12"|"2x12"|"1x12", speaker:"v30"|"green", mic:"sm57"|"md421"|"r121",
+cab:    { cab:"4x12"|"2x12"|"1x12", speaker:"v30"|"green"|"cream", mic:"sm57"|"md421"|"r121",
           micB:"none"|"sm57"|"md421"|"r121", axis:0..1, distance:0..1, blend:0..1, spread:0..1, on:true }
 chorus: { rate:0..1, depth:0..1, mix:0..1, bypass:bool }            // engrossa/espacializa (clean/pop)
 phaser: { rate:0..1, depth:0..1, feedback:0..0.9, mix:0..1, bypass:bool } // varrido setentista (funk/psicodélico)
