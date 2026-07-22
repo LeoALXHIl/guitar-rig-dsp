@@ -19,6 +19,7 @@ let chorus = null, phaser = null; // modulação estéreo (pós-cab, antes do de
 let delay = null, reverb = null; // pós-cab (tempo & espaço)
 let cabConvA = null, cabConvB = null, cabGainA = null, cabGainB = null, panA = null, panB = null, cabDry = null;
 let master = null, looper = null, drumBus = null, inAnalyser = null, outAnalyser = null;
+let monoNode = null, recDest = null, mediaRec = null, recChunks = []; // mono de saída + gravação
 
 // config de áudio (aplicada ao (re)ligar o rig) — Sprint 4 #17
 const audioCfg = { sampleRate: 0, latencyHint: 'interactive', inputDeviceId: '' };
@@ -159,8 +160,16 @@ async function start() {
   cabDry.connect(chorus);
   chorus.connect(phaser).connect(delay);
   delay.connect(reverb).connect(master);
-  master.connect(looper).connect(outAnalyser).connect(ctx.destination);
-  drumBus.connect(ctx.destination);
+  // nó de MONO: downmix (L+R)/2 → sai igual nos dois lados (trava contra som de um lado só)
+  monoNode = ctx.createGain(); monoNode.channelCount = 1; monoNode.channelCountMode = 'explicit'; monoNode.channelInterpretation = 'speakers';
+  monoNode.connect(outAnalyser);
+  master.connect(looper);
+  outAnalyser.connect(ctx.destination);
+  applyMono();                       // liga looper → (mono? monoNode : outAnalyser)
+  // captura pra gravação (tap do sinal final, não interfere no áudio)
+  recDest = ctx.createMediaStreamDestination();
+  outAnalyser.connect(recDest);
+  drumBus.connect(ctx.destination); drumBus.connect(recDest);
 
   // tuner: tap da entrada, saída mutada (só pra rodar o worklet)
   tunerMute = ctx.createGain(); tunerMute.gain.value = 0;
@@ -567,6 +576,38 @@ $('irFile').addEventListener('change', async (e) => {
 $('irClear').addEventListener('click', () => { customIR = null; $('irName').textContent = 'IR sintético'; $('irFile').value = ''; regenCab(); });
 
 $('master').addEventListener('input', () => { $('masterVal').textContent = (+$('master').value).toFixed(2); if (running && master) master.gain.setTargetAtTime(+$('master').value, ctx.currentTime, 0.01); });
+
+// ---- saída MONO (soma L+R nos dois lados) ----
+function applyMono() { if (!looper) return; looper.disconnect(); looper.connect($('monoOut').checked ? monoNode : outAnalyser); }
+{ try { $('monoOut').checked = localStorage.getItem('grd-mono') === '1'; } catch {} }
+$('monoOut').addEventListener('change', () => { try { localStorage.setItem('grd-mono', $('monoOut').checked ? '1' : '0'); } catch {} if (running) applyMono(); });
+
+// ---- gravar o que está tocando → baixa um arquivo de áudio ----
+function toggleRecord() {
+  if (!running || !recDest) { toast('Ligue o rig primeiro pra gravar.'); return; }
+  if (mediaRec && mediaRec.state === 'recording') { mediaRec.stop(); return; }
+  recChunks = [];
+  const mime = (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) ? 'audio/webm;codecs=opus'
+             : (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm')) ? 'audio/webm' : '';
+  if (!window.MediaRecorder) { toast('Seu navegador não suporta gravação (use Chrome/Edge).'); return; }
+  try { mediaRec = mime ? new MediaRecorder(recDest.stream, { mimeType: mime }) : new MediaRecorder(recDest.stream); }
+  catch (e) { toast('Falha ao iniciar gravação: ' + e.message); return; }
+  mediaRec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+  mediaRec.onstop = () => {
+    const type = mediaRec.mimeType || 'audio/webm';
+    const ext = type.indexOf('ogg') >= 0 ? 'ogg' : 'webm';
+    const blob = new Blob(recChunks, { type });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'guitar-rig-' + Date.now() + '.' + ext; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    const b = $('recBtn'); if (b) { b.classList.remove('on'); b.textContent = '● Gravar'; }
+    toast('Gravação salva ✓ (' + ext.toUpperCase() + ')');
+  };
+  mediaRec.start();
+  const b = $('recBtn'); if (b) { b.classList.add('on'); b.textContent = '■ Parar'; }
+  toast('Gravando… clique de novo pra parar e baixar.');
+}
+$('recBtn').addEventListener('click', toggleRecord);
 $('testOn').addEventListener('change', () => { if (running && testGain) testGain.gain.setTargetAtTime($('testOn').checked ? 0.25 : 0, ctx.currentTime, 0.02); });
 
 // ===========================================================================
@@ -1140,7 +1181,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.26.0';
+const APP_VERSION = 'v0.27.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');

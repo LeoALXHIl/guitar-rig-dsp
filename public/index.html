@@ -414,7 +414,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.26.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.27.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -426,6 +426,7 @@
   <button id="mgrToggle" class="ghost"><span class="ico" data-ico="layers"></span> Presets</button>
   <button id="shareBtn" class="ghost" aria-label="Compartilhar tom por link"><span class="ico" data-ico="link"></span> Link</button>
   <button id="aiBtn" class="ghost" aria-label="Gerar tom com IA"><span class="ico" data-ico="ai"></span> IA</button>
+  <button id="recBtn" class="ghost" aria-label="Gravar o que está tocando">● Gravar</button>
   <span class="lab">Skin</span>
   <select id="themeSel" class="sel">
     <option value="onyx">Onyx</option><option value="vintage">Vintage</option>
@@ -716,6 +717,7 @@
     <label class="knob has-knob" style="margin:0"><div class="row"><span>Master</span><b id="masterVal">0.80</b></div><input type="range" id="master" min="0" max="1" step="0.01" value="0.8" /></label>
     <div style="display:flex;justify-content:space-between;margin-top:4px"><span class="lab">Out</span><span id="outClip" class="clip" title="clip — clique p/ resetar"></span></div>
     <div class="meter" style="margin-top:4px"><i id="outMeter"></i><u class="hold" id="outHold"></u></div>
+    <label class="sw" style="font-size:11px;margin-top:6px"><input type="checkbox" id="monoOut" /> Mono (soma L+R)</label>
   </div>
   <div class="blk scopewrap">
     <span class="lab">Saída — VU · Espectro · Osciloscópio</span>
