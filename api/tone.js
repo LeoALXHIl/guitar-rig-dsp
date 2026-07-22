@@ -1,13 +1,20 @@
 // Função serverless (Vercel) — Assistente de Tom por IA.
 // A chave da OpenAI fica SÓ aqui, como variável de ambiente secreta (OPENAI_API_KEY),
-// nunca no frontend. O navegador chama POST /api/tone com { prompt } e recebe { preset }.
+// nunca no frontend. O navegador chama POST /api/tone e recebe { preset, name, why }.
+//
+// Body aceito:
+//   { prompt?: string,        // descrição em texto ("metal grave", "deixa mais brilhante")
+//     ref?: string,           // link (YouTube ou qualquer) — o servidor lê SÓ o título, não baixa áudio
+//     current?: object }      // preset atual (opcional) — quando presente, a IA AJUSTA em cima dele
 //
 // Configurar na Vercel: Project → Settings → Environment Variables → OPENAI_API_KEY = (sua chave)
 // (use uma chave NOVA; a que foi colada no chat deve ser revogada.)
 
 const SYS = `Você é um projetista de tom de guitarra para um simulador de rack web.
-Dada a descrição do usuário, escolha valores MUSICAIS e responda SOMENTE com um objeto JSON
-(sem markdown, sem texto extra) contendo apenas as seções relevantes. Chaves e faixas válidas:
+Escolha valores MUSICAIS e responda SOMENTE com um objeto JSON (sem markdown, sem texto extra) com:
+- name: nome curto e criativo pro preset (PT-BR), ex "5150 Lead Apertado".
+- why: UMA frase curta (PT-BR) explicando as escolhas.
+- e as seções relevantes abaixo. Chaves e faixas válidas:
 
 od:     { drive:1..100, tone:0..1, level:0..1, bypass:bool }        // overdrive/booster
 amp:    { model:"0"|"1", channel:0..2, gain:0..1, bass:0..1, mid:0..1, treble:0..1,
@@ -24,7 +31,35 @@ reverb: { size:0..1, damp:0..1, mix:0..1, bypass:bool }
 
 Regras: metal/alto ganho → model "1" canal 2 (Lead), gate ligado, mid baixo. Clean/funk → model "1"
 canal 0 (Clean) ou model "0" gain baixo, comp ligado. Ambient → delay+reverb ligados com mix alto.
-Se um efeito não faz sentido, deixe bypass:true. Sempre inclua amp e cab.`;
+Se um efeito não faz sentido, deixe bypass:true. Sempre inclua amp e cab.
+Se vier uma REFERÊNCIA (música/artista), aproxime o timbre CARACTERÍSTICO daquele som com os recursos acima
+(o motor só tem 2 amps, então é "no estilo de", não idêntico) e cite a referência no campo why.
+Se vier um PRESET ATUAL, faça só o AJUSTE pedido e MANTENHA o resto igual (devolva o preset inteiro ajustado).`;
+
+// Lê APENAS o título de um link (YouTube via oEmbed, ou <title>/og:title de páginas). Não baixa áudio.
+async function resolveRef(url) {
+  let u;
+  try { u = new URL(url); } catch { return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  const host = u.hostname.replace(/^www\./, '');
+  // bloqueio simples de alvos internos (SSRF)
+  if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host) || host.endsWith('.local')) return null;
+
+  const signal = AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined;
+  try {
+    if (host === 'youtube.com' || host === 'youtu.be' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+      const o = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(url), { signal });
+      if (o.ok) { const d = await o.json(); if (d && d.title) return `música/vídeo "${d.title}"${d.author_name ? ' — canal ' + d.author_name : ''}`; }
+    }
+    const r = await fetch(url, { signal, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; guitar-rig-dsp/1.0)' } });
+    if (!r.ok) return null;
+    const html = (await r.text()).slice(0, 20000);
+    const og = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+    const tt = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = (og && og[1]) || (tt && tt[1]);
+    return title ? `página "${title.trim()}"` : null;
+  } catch { return null; }
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'use POST' }); return; }
@@ -33,24 +68,39 @@ export default async function handler(req, res) {
 
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
-  let prompt = (body && body.prompt || '').toString().slice(0, 400).trim();
-  if (!prompt) { res.status(400).json({ error: 'descrição vazia' }); return; }
+  body = body || {};
+  const desc = (body.prompt || '').toString().slice(0, 400).trim();
+  const refUrl = (body.ref || '').toString().slice(0, 500).trim();
+  const current = body.current && typeof body.current === 'object' ? body.current : null;
+
+  let refInfo = null;
+  if (refUrl) refInfo = await resolveRef(refUrl);
+  if (!desc && !refInfo && !current) { res.status(400).json({ error: 'descreva o som ou cole um link válido' }); return; }
+
+  // monta a mensagem do usuário
+  const parts = [];
+  if (refInfo) parts.push(`Reproduza o timbre de guitarra de: ${refInfo}.`);
+  else if (refUrl) parts.push('(Não consegui ler o título do link — use só a descrição abaixo.)');
+  if (desc) parts.push(refInfo ? `Ajuste pedido: ${desc}` : desc);
+  if (current) parts.push('PRESET ATUAL (ajuste em cima dele, mantendo o resto):\n' + JSON.stringify(current));
+  const userMsg = parts.join('\n') || 'monte um tom versátil e agradável';
 
   try {
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', temperature: 0.7, max_tokens: 500,
+        model: 'gpt-4o-mini', temperature: 0.7, max_tokens: 600,
         response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: SYS }, { role: 'user', content: prompt }],
+        messages: [{ role: 'system', content: SYS }, { role: 'user', content: userMsg }],
       }),
     });
     if (!r.ok) { res.status(502).json({ error: 'OpenAI respondeu ' + r.status }); return; }
     const data = await r.json();
-    let preset = {};
-    try { preset = JSON.parse(data.choices[0].message.content); } catch { res.status(502).json({ error: 'IA não devolveu JSON válido' }); return; }
-    res.status(200).json({ preset });
+    let parsed = {};
+    try { parsed = JSON.parse(data.choices[0].message.content); } catch { res.status(502).json({ error: 'IA não devolveu JSON válido' }); return; }
+    const { name = '', why = '', ...preset } = parsed;
+    res.status(200).json({ preset, name, why, ref: refInfo });
   } catch (e) {
     res.status(500).json({ error: e.message || 'falha na chamada' });
   }

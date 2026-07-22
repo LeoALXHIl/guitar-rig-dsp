@@ -1029,7 +1029,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.18.1';
+const APP_VERSION = 'v0.19.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1311,19 +1311,48 @@ function mergePreset(base, over) {
   for (const k in over) { const v = over[k]; if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = Object.assign(out[k] || {}, v); else out[k] = v; }
   return out;
 }
-async function generateTone(desc) {
+const aiEsc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function generateTone(opts) {
+  const { desc = '', ref = '', refine = false } = opts || {};
+  const btn = $('aiGo'); if (btn) { btn.disabled = true; btn.textContent = 'Gerando…'; }
   toast('Gerando tom com IA…');
   try {
-    const r = await fetch('/api/tone', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: desc }) });
+    const payload = { prompt: desc };
+    if (ref) payload.ref = ref;
+    if (refine) payload.current = collectState();
+    const r = await fetch('/api/tone', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
-    applyAndMark(mergePreset(defaultPreset(), j.preset || {}));
-    toast('Tom gerado ✓ — ' + desc);
-  } catch (e) { toast('IA indisponível: ' + e.message + ' (funciona no deploy Vercel com a OPENAI_API_KEY configurada).'); }
+    applyAndMark(mergePreset(refine ? collectState() : defaultPreset(), j.preset || {}));
+    const res = $('aiResult');
+    if (res) {
+      res.hidden = false;
+      res.innerHTML = `<b>${aiEsc(j.name || 'Tom gerado')}</b>` +
+        (j.why ? '<br>' + aiEsc(j.why) : '') +
+        (j.ref ? `<br><span style="color:var(--dim)">🎯 ref: ${aiEsc(j.ref)}</span>` : '');
+    }
+    toast('Tom aplicado ✓' + (j.name ? ' — ' + j.name : ''));
+  } catch (e) {
+    toast('IA indisponível: ' + e.message + ' (precisa do deploy Vercel com OPENAI_API_KEY).');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Gerar tom 🎸'; }
+  }
 }
-$('aiBtn').addEventListener('click', () => {
-  const d = window.prompt('Descreve o som que você quer:\n(ex.: "metal moderno pesado e apertado", "clean funk cristalino", "lead cantante com delay")');
-  if (d && d.trim()) generateTone(d.trim());
-});
+(() => {
+  const panel = $('aiPanel'); if (!panel) return;
+  const open = () => { panel.classList.add('open'); setTimeout(() => $('aiDesc') && $('aiDesc').focus(), 50); };
+  const close = () => panel.classList.remove('open');
+  $('aiBtn').addEventListener('click', open);
+  $('aiClose').addEventListener('click', close);
+  panel.addEventListener('click', (e) => { if (e.target === panel) close(); });
+  panel.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  $('aiChips').addEventListener('click', (e) => { const b = e.target.closest('.aichip'); if (b) { $('aiDesc').value = b.textContent; $('aiDesc').focus(); } });
+  $('aiGo').addEventListener('click', () => {
+    const desc = $('aiDesc').value.trim(), ref = $('aiRef').value.trim(), refine = $('aiRefine').checked;
+    if (!desc && !ref) { toast('Descreva o som ou cole um link.'); return; }
+    generateTone({ desc, ref, refine });
+  });
+  $('aiRef').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('aiGo').click(); } });
+})();
 
 Log.info('app carregado ' + APP_VERSION);
