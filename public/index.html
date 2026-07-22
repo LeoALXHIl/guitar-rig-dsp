@@ -364,6 +364,34 @@
   .card[data-pedal="fuzz"]   { background: linear-gradient(160deg,#5a2140,#241019); }
   .card[data-pedal="chorus"] { background: linear-gradient(160deg,#1f2f5a,#0f1626); }
   .card[data-pedal="phaser"] { background: linear-gradient(160deg,#3a2150,#1a1026); }
+
+  /* ==================== AMP REAL — cabeçote Plexi (tolex preto + faceplate dourado) ==================== */
+  section[data-mod="amp"] .card {
+    backdrop-filter: none; -webkit-backdrop-filter: none;   /* cancela o vidro do Neural Modern só no amp */
+    background:
+      repeating-linear-gradient(48deg, rgba(255,255,255,.02) 0 1px, transparent 1px 5px),
+      repeating-linear-gradient(-48deg, rgba(0,0,0,.35) 0 1px, transparent 1px 5px),
+      linear-gradient(160deg,#1c1c1e,#0b0b0c);              /* tolex preto texturizado */
+    border: 3px solid #060607; border-radius: 16px; padding: 22px;
+    box-shadow: 0 0 0 3px #d8b45a, inset 0 2px 4px rgba(255,255,255,.06), 0 26px 60px rgba(0,0,0,.65); /* filete dourado */
+  }
+  /* faceplate DOURADO escovado atrás dos knobs, com piping branco */
+  section[data-mod="amp"] .card .knobs.big {
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 1px, transparent 1px 3px),
+      linear-gradient(180deg,#eccb70,#c79a37 58%,#a67f28);
+    border: 2px solid #fdf6e6; border-radius: 10px; margin-top: 10px;
+    padding: 24px 14px 18px;
+    box-shadow: inset 0 2px 5px rgba(255,255,255,.55), inset 0 -4px 8px rgba(0,0,0,.4), 0 3px 10px rgba(0,0,0,.55);
+  }
+  /* rótulos/valores dos knobs em preto sobre o dourado */
+  section[data-mod="amp"] .card .knobs.big label.knob .row span { color:#241704; }
+  section[data-mod="amp"] .card .knobs.big label.knob b { color:#3a2606; }
+  /* toggles Bright/Power como jewel lamps na madeira */
+  section[data-mod="amp"] .card > div:last-of-type { margin-top:16px; padding:10px 12px; border-radius:8px;
+    background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.15)); box-shadow:inset 0 1px 0 rgba(255,255,255,.05); }
+  /* o tube-glow quente combina com o cabeçote — deixa mais sutil sobre a madeira */
+  section[data-mod="amp"] .card::after { opacity: calc(.18 + var(--sig,0) * 0.7); }
 </style>
 </head>
 <body>
@@ -386,7 +414,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.24.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.25.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
