@@ -15,6 +15,7 @@ let testNode = null, testGain = null;
 // blocos
 let gate = null, comp = null, overdrive = null, amp = null, eq = null, tuner = null, tunerMute = null;
 let fuzz = null; // pedal de fuzz (fixo entre comp e o grupo od/amp)
+let chorus = null, phaser = null; // modulação estéreo (pós-cab, antes do delay)
 let delay = null, reverb = null; // pós-cab (tempo & espaço)
 let cabConvA = null, cabConvB = null, cabGainA = null, cabGainB = null, panA = null, panB = null, cabDry = null;
 let master = null, looper = null, drumBus = null, inAnalyser = null, outAnalyser = null;
@@ -105,7 +106,7 @@ async function start() {
   try {
     ctx = new AudioContext(Object.assign({ latencyHint: audioCfg.latencyHint }, audioCfg.sampleRate ? { sampleRate: audioCfg.sampleRate } : {}));
   } catch (e) { ctx = new AudioContext({ latencyHint: audioCfg.latencyHint }); Log.warn('sampleRate pedido rejeitado, usando padrão'); }
-  for (const m of ['gate', 'compressor', 'overdrive', 'fuzz', 'amp', 'eq', 'tuner', 'looper', 'delay', 'reverb']) await ctx.audioWorklet.addModule(`dsp/${m}-processor.js`);
+  for (const m of ['gate', 'compressor', 'overdrive', 'fuzz', 'amp', 'eq', 'tuner', 'looper', 'chorus', 'phaser', 'delay', 'reverb']) await ctx.audioWorklet.addModule(`dsp/${m}-processor.js`);
 
   const wn = (name) => new AudioWorkletNode(ctx, name, { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1 });
   gate = wn('gate-processor');
@@ -135,11 +136,14 @@ async function start() {
 
   delay = new AudioWorkletNode(ctx, 'delay-processor', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 2, channelCountMode: 'explicit' });
   reverb = new AudioWorkletNode(ctx, 'reverb-processor', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 2, channelCountMode: 'explicit' });
+  chorus = new AudioWorkletNode(ctx, 'chorus-processor', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: 'explicit' });
+  phaser = new AudioWorkletNode(ctx, 'phaser-processor', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: 'explicit' });
 
   // final: cab(A/B/dry) → DELAY → REVERB → master → LOOPER → out ; drums → out (fora do loop)
-  cabConvA.connect(cabGainA).connect(panA).connect(delay);
-  cabConvB.connect(cabGainB).connect(panB).connect(delay);
-  cabDry.connect(delay);
+  cabConvA.connect(cabGainA).connect(panA).connect(chorus);
+  cabConvB.connect(cabGainB).connect(panB).connect(chorus);
+  cabDry.connect(chorus);
+  chorus.connect(phaser).connect(delay);
   delay.connect(reverb).connect(master);
   master.connect(looper).connect(outAnalyser).connect(ctx.destination);
   drumBus.connect(ctx.destination);
@@ -217,7 +221,7 @@ function pushParams() {
   overdrive.parameters.get('tone').setTargetAtTime(+$('tone').value, t, 0.01);
   overdrive.parameters.get('level').setTargetAtTime(+$('level').value, t, 0.01);
   overdrive.parameters.get('bypass').setValueAtTime($('odBypass').checked ? 1 : 0, t);
-  pushGateParams(); pushCompParams(); pushFuzzParams(); pushAmpParams(); pushEqParams(); pushDelayParams(); pushReverbParams();
+  pushGateParams(); pushCompParams(); pushFuzzParams(); pushAmpParams(); pushEqParams(); pushChorusParams(); pushPhaserParams(); pushDelayParams(); pushReverbParams();
 }
 function pushFuzzParams() {
   if (!fuzz) return; const t = ctx.currentTime;
@@ -225,6 +229,21 @@ function pushFuzzParams() {
   fuzz.parameters.get('tone').setTargetAtTime(+$('fuzzTone').value, t, 0.01);
   fuzz.parameters.get('level').setTargetAtTime(+$('fuzzLevel').value, t, 0.01);
   fuzz.parameters.get('bypass').setValueAtTime($('fuzzBypass').checked ? 1 : 0, t);
+}
+function pushChorusParams() {
+  if (!chorus) return; const t = ctx.currentTime;
+  chorus.parameters.get('rate').setTargetAtTime(+$('choRate').value, t, 0.02);
+  chorus.parameters.get('depth').setTargetAtTime(+$('choDepth').value, t, 0.02);
+  chorus.parameters.get('mix').setTargetAtTime(+$('choMix').value, t, 0.02);
+  chorus.parameters.get('bypass').setValueAtTime($('choBypass').checked ? 1 : 0, t);
+}
+function pushPhaserParams() {
+  if (!phaser) return; const t = ctx.currentTime;
+  phaser.parameters.get('rate').setTargetAtTime(+$('phRate').value, t, 0.02);
+  phaser.parameters.get('depth').setTargetAtTime(+$('phDepth').value, t, 0.02);
+  phaser.parameters.get('feedback').setTargetAtTime(+$('phFb').value, t, 0.02);
+  phaser.parameters.get('mix').setTargetAtTime(+$('phMix').value, t, 0.02);
+  phaser.parameters.get('bypass').setValueAtTime($('phBypass').checked ? 1 : 0, t);
 }
 function pushGateParams() {
   if (!gate) return; const t = ctx.currentTime;
@@ -413,6 +432,10 @@ const bindKnobs = (ids, push, fmt) => ids.forEach((id) => $(id).addEventListener
 bindKnobs(['drive', 'tone', 'level'], pushParams, (id, v) => v.toFixed(id === 'drive' ? 0 : 2));
 bindKnobs(['fuzzSustain', 'fuzzTone', 'fuzzLevel'], pushFuzzParams, (id, v) => v.toFixed(2));
 $('fuzzBypass').addEventListener('change', () => running && pushFuzzParams());
+bindKnobs(['choRate', 'choDepth', 'choMix'], pushChorusParams, (id, v) => v.toFixed(2));
+$('choBypass').addEventListener('change', () => running && pushChorusParams());
+bindKnobs(['phRate', 'phDepth', 'phFb', 'phMix'], pushPhaserParams, (id, v) => v.toFixed(2));
+$('phBypass').addEventListener('change', () => running && pushPhaserParams());
 $('odBypass').addEventListener('change', () => running && pushParams());
 
 bindKnobs(['gateThresh', 'gateRel'], pushGateParams, (id, v) => id === 'gateThresh' ? v.toFixed(0) + ' dB' : v.toFixed(0) + ' ms');
@@ -514,7 +537,7 @@ let dragId = null;
 
 function collectState() {
   return {
-    v: 4,
+    v: 5,
     gate: { threshold: +$('gateThresh').value, release: +$('gateRel').value, bypass: $('gateBypass').checked },
     comp: { threshold: +$('compThresh').value, ratio: +$('compRatio').value, attack: +$('compAtt').value, release: +$('compRel').value, makeup: +$('compMakeup').value, bypass: $('compBypass').checked },
     od: { drive: +$('drive').value, tone: +$('tone').value, level: +$('level').value, bypass: $('odBypass').checked },
@@ -524,6 +547,8 @@ function collectState() {
     cab: { cab: $('cabType').value, speaker: $('speaker').value, mic: $('mic').value, micB: $('micB').value, axis: +$('axis').value, distance: +$('distance').value, blend: +$('blend').value, spread: +$('spread').value, on: $('cabOn').checked },
     delay: { time: +$('dlyTime').value, feedback: +$('dlyFb').value, tone: +$('dlyTone').value, mix: +$('dlyMix').value, bypass: $('dlyBypass').checked },
     reverb: { size: +$('rvSize').value, damp: +$('rvDamp').value, mix: +$('rvMix').value, bypass: $('rvBypass').checked },
+    chorus: { rate: +$('choRate').value, depth: +$('choDepth').value, mix: +$('choMix').value, bypass: $('choBypass').checked },
+    phaser: { rate: +$('phRate').value, depth: +$('phDepth').value, feedback: +$('phFb').value, mix: +$('phMix').value, bypass: $('phBypass').checked },
     master: +$('master').value, order: chainOrder.slice(),
   };
 }
@@ -543,6 +568,9 @@ function applyState(s) {
   { const d = s.delay || { time: 0.35, feedback: 0.35, tone: 0.5, mix: 0.3, bypass: true }, rv = s.reverb || { size: 0.6, damp: 0.5, mix: 0.25, bypass: true };
     setC('dlyTime', d.time); setC('dlyFb', d.feedback); setC('dlyTone', d.tone); setC('dlyMix', d.mix); setC('dlyBypass', d.bypass);
     setC('rvSize', rv.size); setC('rvDamp', rv.damp); setC('rvMix', rv.mix); setC('rvBypass', rv.bypass); }
+  { const ch = s.chorus || {}, ph = s.phaser || {};
+    setC('choRate', ch.rate); setC('choDepth', ch.depth); setC('choMix', ch.mix); setC('choBypass', ch.bypass);
+    setC('phRate', ph.rate); setC('phDepth', ph.depth); setC('phFb', ph.feedback); setC('phMix', ph.mix); setC('phBypass', ph.bypass); }
   setC('master', s.master);
   Object.assign(cabSettings, { cab: s.cab.cab, speaker: s.cab.speaker, mic: s.cab.mic, micB: s.cab.micB || 'none', axis: s.cab.axis, distance: s.cab.distance, blend: s.cab.blend ?? 0.5, spread: s.cab.spread ?? 0.4 });
   ampChannel = s.amp.channel != null ? +s.amp.channel : ((AMP_CHANNELS[+$('ampModel').value] || [0]).length - 1);
@@ -559,6 +587,10 @@ function migratePreset(s) {
     if (s.cab) { s.cab.micB = s.cab.micB || 'none'; s.cab.blend = s.cab.blend ?? 0.5; s.cab.spread = s.cab.spread ?? 0.4; }
     s.v = 2;
   }
+  if (s.v < 5) { // modulação nova (v5)
+    s.chorus = s.chorus || { rate: 0.3, depth: 0.5, mix: 0.5, bypass: true };
+    s.phaser = s.phaser || { rate: 0.3, depth: 0.7, feedback: 0.3, mix: 0.5, bypass: true };
+  }
   if (s.v < 4) s.fuzz = s.fuzz || { sustain: 0.6, tone: 0.5, level: 0.6, bypass: true }; // fuzz novo (v4)
   if (s.v < 3) { // adiciona canal do amp + delay + reverb
     if (s.amp && s.amp.channel == null) s.amp.channel = s.amp.model === '1' ? 2 : 0;
@@ -570,7 +602,7 @@ function migratePreset(s) {
 }
 
 function refreshLabels() {
-  const two = ['drive', 'tone', 'level', 'fuzzSustain', 'fuzzTone', 'fuzzLevel', 'ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster', 'master'];
+  const two = ['drive', 'tone', 'level', 'fuzzSustain', 'fuzzTone', 'fuzzLevel', 'ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster', 'master', 'choRate', 'choDepth', 'choMix', 'phRate', 'phDepth', 'phFb', 'phMix'];
   two.forEach((id) => { const v = $(id + 'Val'); if (v) v.textContent = (+$(id).value).toFixed(id === 'drive' ? 0 : 2); });
   $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag;
   if (typeof setFaceplate === 'function') setFaceplate();
@@ -605,7 +637,9 @@ const eFlat = { low: 0, mid: 0, midFreq: 800, midQ: 1, high: 0, hp: 20, lp: 2000
 const dOff = { time: 0.35, feedback: 0.35, tone: 0.5, mix: 0.3, bypass: true };
 const rOff = { size: 0.6, damp: 0.5, mix: 0.25, bypass: true };
 const fzOff = { sustain: 0.6, tone: 0.5, level: 0.6, bypass: true };
-const P = (o) => Object.assign({ v: 4, gate: gOff, comp: cOff, od: { drive: 10, tone: 0.6, level: 0.6, bypass: true }, fuzz: fzOff, amp: {}, eq: eFlat, delay: dOff, reverb: rOff, master: 0.8, order: ['od', 'amp'] }, o);
+const choOff = { rate: 0.3, depth: 0.5, mix: 0.5, bypass: true };
+const phOff = { rate: 0.3, depth: 0.7, feedback: 0.3, mix: 0.5, bypass: true };
+const P = (o) => Object.assign({ v: 5, gate: gOff, comp: cOff, od: { drive: 10, tone: 0.6, level: 0.6, bypass: true }, fuzz: fzOff, amp: {}, eq: eFlat, chorus: choOff, phaser: phOff, delay: dOff, reverb: rOff, master: 0.8, order: ['od', 'amp'] }, o);
 const AMP = (o) => Object.assign({ model: '1', channel: 2, gain: 0.6, bass: 0.5, mid: 0.5, treble: 0.6, presence: 0.45, depth: 0.5, master: 0.6, bright: true, power: true }, o);
 const CAB = (o) => Object.assign({ cab: '4x12', speaker: 'v30', mic: 'sm57', micB: 'none', axis: 0.3, distance: 0.3, blend: 0.5, spread: 0.4, on: true }, o);
 const FACTORY = {
@@ -1049,7 +1083,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.21.0';
+const APP_VERSION = 'v0.22.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
@@ -1100,6 +1134,8 @@ const CHIP_TIPS = {
   comp: 'Compressor — controla a dinâmica, mais sustain e uniformidade',
   od: 'Overdrive — empurra o amp e aperta o grave (tightener)',
   fuzz: 'Fuzz — Big Muff-style: denso, sustentado e gordo (Tone escava o médio)',
+  chorus: 'Chorus — engrossa e espacializa (delay modulado estéreo)',
+  phaser: 'Phaser — varrido setentista (cascata all-pass modulada)',
   amp: 'Cabeçote — o coração do tom, 4 modelos (JCM800 / 5150 / Twin / Rectifier)',
   eq: 'EQ paramétrico — molda o timbre depois do cabinet',
   cab: 'Cabinet + microfones — caixa, falante e micagem (dual-mic estéreo)',
@@ -1267,7 +1303,7 @@ function diffLabel(from, to) { // o que muda ao ir de `from` pra `to`
 renderIcons();
 
 // ---- pedais com cara de stompbox: chassis + footswitch de pisar por bloco ----
-const PEDALS = { gate: { sw: 'gateBypass', inv: 1 }, comp: { sw: 'compBypass', inv: 1 }, od: { sw: 'odBypass', inv: 1 }, fuzz: { sw: 'fuzzBypass', inv: 1 }, eq: { sw: 'eqBypass', inv: 1 }, cab: { sw: 'cabOn', inv: 0 } };
+const PEDALS = { gate: { sw: 'gateBypass', inv: 1 }, comp: { sw: 'compBypass', inv: 1 }, od: { sw: 'odBypass', inv: 1 }, fuzz: { sw: 'fuzzBypass', inv: 1 }, eq: { sw: 'eqBypass', inv: 1 }, cab: { sw: 'cabOn', inv: 0 }, chorus: { sw: 'choBypass', inv: 1 }, phaser: { sw: 'phBypass', inv: 1 } };
 function syncStomps() {
   document.querySelectorAll('.fled[data-fled]').forEach((led) => {
     const p = PEDALS[led.dataset.fled], sw = $(p.sw); if (!sw) return;

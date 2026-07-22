@@ -332,7 +332,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.21.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.22.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -389,6 +389,10 @@
   <button class="chip" data-mod="eq" data-sw="eqBypass" data-inv="1"><span class="dot"></span>EQ</button>
   <span class="link"></span>
   <button class="chip" data-mod="cab" data-sw="cabOn" data-inv="0"><span class="dot"></span>Cab</button>
+  <span class="link"></span>
+  <button class="chip" data-mod="chorus" data-sw="choBypass" data-inv="1"><span class="dot"></span>Chorus</button>
+  <span class="link"></span>
+  <button class="chip" data-mod="phaser" data-sw="phBypass" data-inv="1"><span class="dot"></span>Phaser</button>
   <span class="link"></span>
   <button class="chip" data-mod="delay" data-sw="dlyBypass" data-inv="1"><span class="dot"></span>Delay</button>
   <span class="link"></span>
@@ -507,6 +511,29 @@
       <label class="btn-file">Carregar .wav<input type="file" id="irFile" accept=".wav,audio/wav" hidden /></label>
       <button id="irClear" class="mini">Sintético</button>
     </div>
+  </div></section>
+
+  <!-- CHORUS -->
+  <section class="mod" data-mod="chorus"><div class="card">
+    <header><h2>Chorus</h2><span class="sub">modulação estéreo</span></header>
+    <div class="knobs big">
+      <label class="knob"><div class="row"><span>Rate</span><b id="choRateVal">0.30</b></div><input type="range" id="choRate" min="0" max="1" step="0.01" value="0.3" /></label>
+      <label class="knob"><div class="row"><span>Depth</span><b id="choDepthVal">0.50</b></div><input type="range" id="choDepth" min="0" max="1" step="0.01" value="0.5" /></label>
+      <label class="knob"><div class="row"><span>Mix</span><b id="choMixVal">0.50</b></div><input type="range" id="choMix" min="0" max="1" step="0.01" value="0.5" /></label>
+    </div>
+    <label class="sw"><input type="checkbox" id="choBypass" checked /> Bypass</label>
+  </div></section>
+
+  <!-- PHASER -->
+  <section class="mod" data-mod="phaser"><div class="card">
+    <header><h2>Phaser</h2><span class="sub">varrido all-pass</span></header>
+    <div class="knobs big">
+      <label class="knob"><div class="row"><span>Rate</span><b id="phRateVal">0.30</b></div><input type="range" id="phRate" min="0" max="1" step="0.01" value="0.3" /></label>
+      <label class="knob"><div class="row"><span>Depth</span><b id="phDepthVal">0.70</b></div><input type="range" id="phDepth" min="0" max="1" step="0.01" value="0.7" /></label>
+      <label class="knob"><div class="row"><span>Feedback</span><b id="phFbVal">0.30</b></div><input type="range" id="phFb" min="0" max="0.9" step="0.01" value="0.3" /></label>
+      <label class="knob"><div class="row"><span>Mix</span><b id="phMixVal">0.50</b></div><input type="range" id="phMix" min="0" max="1" step="0.01" value="0.5" /></label>
+    </div>
+    <label class="sw"><input type="checkbox" id="phBypass" checked /> Bypass</label>
   </div></section>
 
   <!-- DELAY -->

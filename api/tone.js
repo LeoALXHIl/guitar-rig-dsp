@@ -29,6 +29,8 @@ comp:   { threshold:-60..0, ratio:1..20, attack:0.1..100, release:10..1000, make
 eq:     { low:-18..18, mid:-18..18, midFreq:200..5000, midQ:0.2..8, high:-18..18, hp:20..400, lp:2000..20000, bypass:bool }
 cab:    { cab:"4x12"|"2x12"|"1x12", speaker:"v30"|"green", mic:"sm57"|"md421"|"r121",
           micB:"none"|"sm57"|"md421"|"r121", axis:0..1, distance:0..1, blend:0..1, spread:0..1, on:true }
+chorus: { rate:0..1, depth:0..1, mix:0..1, bypass:bool }            // engrossa/espacializa (clean/pop)
+phaser: { rate:0..1, depth:0..1, feedback:0..0.9, mix:0..1, bypass:bool } // varrido setentista (funk/psicodélico)
 delay:  { time:0.02..1.2, feedback:0..0.95, tone:0..1, mix:0..1, bypass:bool }   // time em segundos
 reverb: { size:0..1, damp:0..1, mix:0..1, bypass:bool }
 
