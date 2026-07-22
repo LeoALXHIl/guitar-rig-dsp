@@ -253,6 +253,12 @@
   .card[data-amp="1"] > header { background:linear-gradient(180deg,#33363c,#131417); color:#eceae4;
                                  border:1px solid #000; box-shadow:inset 0 1px 0 rgba(255,255,255,.08); }
   .card[data-amp="1"] > header .sub { color:#8b8a83; }
+  .card[data-amp="2"] > header { background:linear-gradient(180deg,#5ab4e0,#1d5c7e); color:#04121a;
+                                 box-shadow:inset 0 1px 0 rgba(255,255,255,.4), inset 0 -2px 6px rgba(0,0,0,.25); }
+  .card[data-amp="2"] > header .sub { color:#0a2f42; }
+  .card[data-amp="3"] > header { background:linear-gradient(180deg,#d4564a,#7a1c15); color:#fff;
+                                 border:1px solid #000; box-shadow:inset 0 1px 0 rgba(255,255,255,.18); }
+  .card[data-amp="3"] > header .sub { color:rgba(255,255,255,.6); }
   .channels { display:flex; gap:6px; margin-left:auto; }
   .chbtn { display:inline-flex; align-items:center; gap:6px; background:rgba(0,0,0,.28); color:inherit;
            border:1px solid rgba(0,0,0,.35); padding:5px 11px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; }
@@ -343,14 +349,16 @@
   .dock canvas#vu, .dock canvas#scope { box-shadow: inset 0 0 26px rgba(0,0,0,.65), 0 0 18px color-mix(in srgb,var(--accent) 16%,transparent); }
 
   /* TUBE-GLOW reativo no amp: brilha conforme o sinal (var --sig) + pulso sutil */
-  section[data-mod="amp"] .card { position: relative; overflow: hidden; }
+  section[data-mod="amp"] .card { position: relative; overflow: hidden;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.09), inset 0 0 0 1px color-mix(in srgb,var(--accent) 24%,transparent),
+                0 0 40px color-mix(in srgb,var(--accent) 14%,transparent), 0 24px 60px rgba(0,0,0,.5); }
   section[data-mod="amp"] .card::after {
-    content:''; position:absolute; left:-10%; right:-10%; bottom:-45%; height:80%; pointer-events:none; z-index:0;
-    background: radial-gradient(55% 100% at 50% 100%, color-mix(in srgb,var(--accent) 45%,transparent), transparent 72%);
-    filter: blur(26px); opacity: calc(.22 + var(--sig,0) * 0.9);
-    animation: tubePulse 3.4s ease-in-out infinite; }
+    content:''; position:absolute; left:-15%; right:-15%; bottom:-26%; height:95%; pointer-events:none; z-index:0;
+    background: radial-gradient(55% 100% at 50% 100%, color-mix(in srgb,var(--accent) 62%,transparent), transparent 70%);
+    filter: blur(30px); opacity: calc(.45 + var(--sig,0) * 0.55);
+    animation: tubePulse 2.8s ease-in-out infinite; }
   section[data-mod="amp"] .card > * { position: relative; z-index: 1; }
-  @keyframes tubePulse { 0%,100%{ transform: scaleY(1); } 50%{ transform: scaleY(1.12); } }
+  @keyframes tubePulse { 0%,100%{ transform: scaleY(.95); } 50%{ transform: scaleY(1.1); } }
 
   /* chassis dos pedais novos (combina com os antigos) */
   .card[data-pedal="fuzz"]   { background: linear-gradient(160deg,#5a2140,#241019); }
@@ -378,7 +386,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.23.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.23.1</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
