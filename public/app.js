@@ -417,6 +417,8 @@ bindKnobs(['ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster']
 const AMP_CHANNELS = [
   [{ n: 'Normal', c: '#e0a24a' }],
   [{ n: 'Clean', c: '#4fae53' }, { n: 'Crunch', c: '#e0a24a' }, { n: 'Lead', c: '#e0503a' }],
+  [{ n: 'Clean', c: '#4fbfe0' }],
+  [{ n: 'Vintage', c: '#e0a24a' }, { n: 'Modern', c: '#e0503a' }],
 ];
 let ampChannel = 0;
 function setFaceplate() {
@@ -435,7 +437,7 @@ $('ampChannels').addEventListener('click', (e) => {
 });
 $('ampModel').addEventListener('change', () => {
   $('ampModelName').textContent = $('ampModel').selectedOptions[0].dataset.tag;
-  ampChannel = +$('ampModel').value === 1 ? 2 : 0; // 5150 abre no Lead; 800 canal único
+  ampChannel = (AMP_CHANNELS[+$('ampModel').value] || [0]).length - 1; // abre no canal mais quente do modelo
   setFaceplate();
   if (running) withDuck(pushAmpParams);
 });
@@ -529,7 +531,7 @@ function applyState(s) {
     setC('rvSize', rv.size); setC('rvDamp', rv.damp); setC('rvMix', rv.mix); setC('rvBypass', rv.bypass); }
   setC('master', s.master);
   Object.assign(cabSettings, { cab: s.cab.cab, speaker: s.cab.speaker, mic: s.cab.mic, micB: s.cab.micB || 'none', axis: s.cab.axis, distance: s.cab.distance, blend: s.cab.blend ?? 0.5, spread: s.cab.spread ?? 0.4 });
-  ampChannel = s.amp.channel != null ? +s.amp.channel : (+$('ampModel').value === 1 ? 2 : 0);
+  ampChannel = s.amp.channel != null ? +s.amp.channel : ((AMP_CHANNELS[+$('ampModel').value] || [0]).length - 1);
   refreshLabels();
   setOrder(s.order || ['od', 'amp']);
   if (running) { pushParams(); regenCab(); }
@@ -599,6 +601,8 @@ const FACTORY = {
   '★ Blues Crunch — 5150 Crunch': P({ comp: { threshold: -24, ratio: 3, attack: 12, release: 160, makeup: 2, bypass: false }, amp: AMP({ channel: 1, gain: 0.55, bass: 0.55, mid: 0.6, treble: 0.6, presence: 0.4, depth: 0.4 }), cab: CAB({ cab: '2x12', speaker: 'green', mic: 'r121', axis: 0.45, distance: 0.4 }), reverb: { size: 0.55, damp: 0.45, mix: 0.18, bypass: false } }),
   '★ Clean Funk — 5150 Clean': P({ comp: { threshold: -28, ratio: 5, attack: 5, release: 100, makeup: 6, bypass: false }, amp: AMP({ channel: 0, gain: 0.3, bass: 0.55, mid: 0.5, treble: 0.72, presence: 0.5, depth: 0.3, master: 0.55 }), eq: { low: 1, mid: -1, midFreq: 800, midQ: 1, high: 3, hp: 45, lp: 16000, bypass: false }, cab: CAB({ cab: '2x12', speaker: 'green', mic: 'sm57', micB: 'r121', axis: 0.35, distance: 0.35, blend: 0.5, spread: 0.7 }), delay: { time: 0.3, feedback: 0.2, tone: 0.6, mix: 0.15, bypass: false } }),
   '★ Ambient Clean — 5150 + Space': P({ amp: AMP({ channel: 0, gain: 0.25, bass: 0.5, mid: 0.45, treble: 0.7, presence: 0.5, depth: 0.3, master: 0.5 }), eq: { low: 0, mid: 0, midFreq: 800, midQ: 1, high: 2, hp: 60, lp: 15000, bypass: false }, cab: CAB({ cab: '1x12', speaker: 'green', mic: 'r121', micB: 'sm57', axis: 0.4, distance: 0.5, blend: 0.5, spread: 0.8 }), delay: { time: 0.55, feedback: 0.45, tone: 0.45, mix: 0.35, bypass: false }, reverb: { size: 0.85, damp: 0.35, mix: 0.4, bypass: false } }),
+  '★ Clean Cristalino — US Twin': P({ comp: { threshold: -26, ratio: 4, attack: 6, release: 120, makeup: 4, bypass: false }, amp: AMP({ model: '2', channel: 0, gain: 0.35, bass: 0.5, mid: 0.4, treble: 0.72, presence: 0.55, depth: 0.35, master: 0.6 }), eq: { low: 1, mid: -2, midFreq: 700, midQ: 1, high: 3, hp: 40, lp: 17000, bypass: false }, cab: CAB({ cab: '2x12', speaker: 'green', mic: 'r121', micB: 'sm57', axis: 0.38, distance: 0.4, blend: 0.5, spread: 0.7 }), delay: { time: 0.32, feedback: 0.22, tone: 0.6, mix: 0.16, bypass: false }, reverb: { size: 0.6, damp: 0.4, mix: 0.2, bypass: false } }),
+  '★ Metal Moderno — Rectifier': P({ gate: { threshold: -46, release: 70, bypass: false }, od: { drive: 18, tone: 0.5, level: 0.85, bypass: false }, amp: AMP({ model: '3', channel: 1, gain: 0.88, bass: 0.62, mid: 0.18, treble: 0.68, presence: 0.55, depth: 0.7 }), eq: { low: 1, mid: -4, midFreq: 550, midQ: 1.3, high: 2, hp: 80, lp: 10500, bypass: false }, cab: CAB({ micB: 'r121', axis: 0.35, distance: 0.22, blend: 0.4, spread: 0.5 }), reverb: { size: 0.42, damp: 0.65, mix: 0.12, bypass: false } }),
 };
 // ===========================================================================
 // Sprint 3 — Preset Manager (IndexedDB + busca/tags/favoritos), A/B, Undo/Redo,
@@ -1029,7 +1033,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.19.0';
+const APP_VERSION = 'v0.20.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');

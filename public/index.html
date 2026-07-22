@@ -332,7 +332,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.19.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.20.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -443,6 +443,8 @@
     <select id="ampModel" class="sel" style="width:100%;margin-bottom:18px">
       <option value="0" data-tag="800-style · 2203" selected>800-style (JCM800 2203 · EL34)</option>
       <option value="1" data-tag="5150-style · Lead">5150-style Lead (EVH 5150III · 6L6)</option>
+      <option value="2" data-tag="Clean US · Twin">Clean US-style (Twin · 6L6)</option>
+      <option value="3" data-tag="Recto · Modern">Rectifier-style Modern (multi-canal)</option>
     </select>
     <div class="knobs big">
       <label class="knob"><div class="row"><span>Gain</span><b id="ampGainVal">0.60</b></div><input type="range" id="ampGain" min="0" max="1" step="0.01" value="0.6" /></label>

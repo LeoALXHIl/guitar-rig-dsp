@@ -17,10 +17,12 @@ Escolha valores MUSICAIS e responda SOMENTE com um objeto JSON (sem markdown, se
 - e as seções relevantes abaixo. Chaves e faixas válidas:
 
 od:     { drive:1..100, tone:0..1, level:0..1, bypass:bool }        // overdrive/booster
-amp:    { model:"0"|"1", channel:0..2, gain:0..1, bass:0..1, mid:0..1, treble:0..1,
+amp:    { model:"0"|"1"|"2"|"3", channel:0..2, gain:0..1, bass:0..1, mid:0..1, treble:0..1,
           presence:0..1, depth:0..1, master:0..1, bright:bool, power:true }
         // model "0" = Marshall-ish (JCM800), canal sempre 0.
         // model "1" = high-gain (5150): channel 0=Clean, 1=Crunch, 2=Lead.
+        // model "2" = clean US-ish (Fender Twin), muito headroom/brilho, canal sempre 0. Bom p/ clean/funk/blues.
+        // model "3" = Rectifier-ish moderno (grave/scooped/apertado): channel 0=Vintage, 1=Modern. Bom p/ metal moderno.
 gate:   { threshold:-90..0, release:10..600, bypass:bool }          // noise gate (dB, ms)
 comp:   { threshold:-60..0, ratio:1..20, attack:0.1..100, release:10..1000, makeup:0..24, bypass:bool }
 eq:     { low:-18..18, mid:-18..18, midFreq:200..5000, midQ:0.2..8, high:-18..18, hp:20..400, lp:2000..20000, bypass:bool }

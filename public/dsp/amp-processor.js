@@ -116,6 +116,23 @@ const VOICES = [
       { name: 'Lead', gainMul: 1.0, stages: 4 },
     ],
   },
+  { // 2 — Clean US-style (Twin) — muito headroom, médio escavado, brilhante, 6L6
+    stages: 2, stageGain: [[1.2, 3.6], [1.0, 2.6], [1.0, 2.0]], bias: [0.06, 0.04, 0.03],
+    millerHz: [12000, 12000, 12000], millerBrightHz: 16000, coupleHz: [80, 40], coupleBrightHz: 180,
+    midHz: 500, midQ: 0.7, midRange: [-10, 3], trebHz: 4000, bassHz: 90,
+    powerGain: [0.3, 3.0], sag: 0.15, xfmrResHz: 100, xfmrResGain: 2,
+    channels: [{ name: 'Clean', gainMul: 1.0, stages: 2 }],
+  },
+  { // 3 — Rectifier-style moderno — altíssimo ganho, médio bem escavado, grave grosso, spongy
+    stages: 4, stageGain: [[2.2, 14], [2.2, 15], [1.8, 11], [1.5, 8]], bias: [0.16, 0.11, 0.07, 0.05],
+    millerHz: [5000, 5500, 5000, 5000], millerBrightHz: 8000, coupleHz: [180, 100], coupleBrightHz: 300,
+    midHz: 700, midQ: 0.9, midRange: [-18, 2], trebHz: 3500, bassHz: 85,
+    powerGain: [0.4, 4.2], sag: 0.5, xfmrResHz: 80, xfmrResGain: 4,
+    channels: [
+      { name: 'Vintage', gainMul: 0.72, stages: 3 },
+      { name: 'Modern', gainMul: 1.0, stages: 4 },
+    ],
+  },
 ];
 
 const OS_FACTOR = 4;
@@ -123,7 +140,7 @@ const OS_FACTOR = 4;
 class AmpProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      { name: 'model', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'model', defaultValue: 0, minValue: 0, maxValue: 3, automationRate: 'k-rate' },
       { name: 'channel', defaultValue: 0, minValue: 0, maxValue: 3, automationRate: 'k-rate' },
       { name: 'gain', defaultValue: 0.6, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
       { name: 'bass', defaultValue: 0.5, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
@@ -170,7 +187,7 @@ class AmpProcessor extends AudioWorkletProcessor {
     if (params.power[0] < 0.5) { yout.set(xin); return true; }
 
     const fs = this.fsOS;                       // TODOS os coeficientes usam a taxa 4×
-    const V = VOICES[params.model[0] >= 0.5 ? 1 : 0];
+    const V = VOICES[Math.max(0, Math.min(VOICES.length - 1, Math.round(params.model[0])))];
     // canal ativo (Clean/Crunch/Lead): escala o ganho do pré e o nº de estágios
     const chRaw = params.channel ? params.channel[0] : 0;
     const ch = V.channels[Math.max(0, Math.min(V.channels.length - 1, Math.round(chRaw) || 0))];
