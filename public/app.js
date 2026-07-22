@@ -462,6 +462,18 @@ bindKnobs(['compThresh', 'compRatio', 'compAtt', 'compRel', 'compMakeup'], pushC
 $('compBypass').addEventListener('change', () => running && pushCompParams());
 
 bindKnobs(['ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster'], pushAmpParams, (id, v) => v.toFixed(2));
+// knobs "extras" reais por amp: Reverb (Twin → reverb do rack) e Output (Recto → master global).
+// São views de controles que já existem: escrevem no destino e disparam o wiring nativo.
+$('ampReverb').addEventListener('input', () => {
+  $('ampReverbVal').textContent = (+$('ampReverb').value).toFixed(2);
+  const rv = $('rvMix'); rv.value = $('ampReverb').value; rv.dispatchEvent(new Event('input', { bubbles: true }));
+  const rb = $('rvBypass'), wantBypass = +$('ampReverb').value <= 0.001;
+  if (rb.checked !== wantBypass) { rb.checked = wantBypass; rb.dispatchEvent(new Event('change', { bubbles: true })); }
+});
+$('ampOutput').addEventListener('input', () => {
+  $('ampOutputVal').textContent = (+$('ampOutput').value).toFixed(2);
+  const m = $('master'); m.value = $('ampOutput').value; m.dispatchEvent(new Event('input', { bubbles: true }));
+});
 // ---- canais + faceplate por amp (#6/#7) ----
 const AMP_CHANNELS = [
   [{ n: 'Normal', c: '#e0a24a' }],
@@ -470,9 +482,40 @@ const AMP_CHANNELS = [
   [{ n: 'Vintage', c: '#e0a24a' }, { n: 'Modern', c: '#e0503a' }],
 ];
 let ampChannel = 0;
+// knobs específicos por amp (nomes reais + só os controles que o amp de verdade tem).
+// hide: knobs que o amp real NÃO tem → escondidos e fixados num valor sensato. extra: knob real adicional.
+const AMP_BASE_KNOBS = ['ampGain', 'bass', 'mid', 'treble', 'presence', 'depth', 'ampMaster'];
+const AMP_KNOBS = {
+  0: { labels: { ampGain: 'Preamp', bass: 'Bass', mid: 'Middle', treble: 'Treble', presence: 'Presence', ampMaster: 'Master' }, hide: { depth: 0.30 }, extra: null },       // JCM800
+  1: { labels: { ampGain: 'Gain', bass: 'Low', mid: 'Mid', treble: 'High', presence: 'Presence', depth: 'Resonance', ampMaster: 'Volume' }, hide: {}, extra: null },        // 5150
+  2: { labels: { ampGain: 'Volume', bass: 'Bass', mid: 'Middle', treble: 'Treble' }, hide: { presence: 0.4, depth: 0.2, ampMaster: 0.72 }, extra: 'reverb' },                // Twin
+  3: { labels: { ampGain: 'Gain', bass: 'Bass', mid: 'Mid', treble: 'Treble', presence: 'Presence', ampMaster: 'Master' }, hide: { depth: 0.4 }, extra: 'output' },          // Rectifier
+};
+function applyAmpKnobLayout(m) {
+  const spec = AMP_KNOBS[m] || AMP_KNOBS[0];
+  AMP_BASE_KNOBS.forEach((id) => {
+    const inp = $(id); if (!inp) return;
+    const label = inp.closest('label.knob'); if (!label) return;
+    if (spec.labels[id] !== undefined) {
+      label.style.display = '';
+      const span = label.querySelector('.row span'); if (span) span.textContent = spec.labels[id];
+    } else {
+      label.style.display = 'none';
+      if (spec.hide && spec.hide[id] !== undefined) { inp.value = spec.hide[id]; const vb = $(id + 'Val'); if (vb) vb.textContent = (+inp.value).toFixed(2); }
+    }
+  });
+  const revL = $('ampReverb') && $('ampReverb').closest('label.knob');
+  const outL = $('ampOutput') && $('ampOutput').closest('label.knob');
+  if (revL) revL.style.display = spec.extra === 'reverb' ? '' : 'none';
+  if (outL) outL.style.display = spec.extra === 'output' ? '' : 'none';
+  if (spec.extra === 'reverb') { $('ampReverb').value = $('rvMix').value; $('ampReverbVal').textContent = (+$('rvMix').value).toFixed(2); }
+  if (spec.extra === 'output') { $('ampOutput').value = $('master').value; $('ampOutputVal').textContent = (+$('master').value).toFixed(2); }
+  if (typeof syncKnobs === 'function') syncKnobs();
+}
 function setFaceplate() {
   const m = +$('ampModel').value;
   const card = document.querySelector('[data-mod="amp"] .card'); if (card) card.dataset.amp = m;
+  applyAmpKnobLayout(m);
   const list = AMP_CHANNELS[m]; ampChannel = Math.min(ampChannel, list.length - 1);
   const box = $('ampChannels'); if (!box) return;
   box.style.display = list.length > 1 ? 'flex' : 'none';
@@ -1097,7 +1140,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.25.0';
+const APP_VERSION = 'v0.26.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');

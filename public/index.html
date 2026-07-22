@@ -414,7 +414,7 @@
 <canvas id="bg"></canvas>
 
 <div class="top">
-  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.25.0</small></span>
+  <span class="brand">🎸 guitar-rig-dsp <small id="appVer">v0.26.0</small></span>
   <button id="power"><span class="ico" data-ico="power"></span><span id="powerTxt">Ligar</span></button>
   <span id="status">Clique em "Ligar" e permita o microfone/interface.</span>
   <span class="spacer"></span>
@@ -554,6 +554,8 @@
       <label class="knob"><div class="row"><span>Presence</span><b id="presenceVal">0.40</b></div><input type="range" id="presence" min="0" max="1" step="0.01" value="0.4" /></label>
       <label class="knob"><div class="row"><span>Depth</span><b id="depthVal">0.40</b></div><input type="range" id="depth" min="0" max="1" step="0.01" value="0.4" /></label>
       <label class="knob"><div class="row"><span>Master</span><b id="ampMasterVal">0.50</b></div><input type="range" id="ampMaster" min="0" max="1" step="0.01" value="0.5" /></label>
+      <label class="knob" style="display:none"><div class="row"><span>Reverb</span><b id="ampReverbVal">0.00</b></div><input type="range" id="ampReverb" min="0" max="1" step="0.01" value="0" /></label>
+      <label class="knob" style="display:none"><div class="row"><span>Output</span><b id="ampOutputVal">0.80</b></div><input type="range" id="ampOutput" min="0" max="1" step="0.01" value="0.8" /></label>
     </div>
     <div style="margin-top:16px"><label class="sw"><input type="checkbox" id="bright" checked /> Bright</label><label class="sw"><input type="checkbox" id="ampPower" checked /> Power</label></div>
   </div></section>
