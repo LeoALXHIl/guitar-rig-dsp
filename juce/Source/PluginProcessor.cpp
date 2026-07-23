@@ -77,6 +77,13 @@ GuitarRigDSPAudioProcessor::GuitarRigDSPAudioProcessor()
     pOdTone = apvts.getRawParameterValue ("odTone"); pOdLevel = apvts.getRawParameterValue ("odLevel");
     pFzOn = apvts.getRawParameterValue ("fzOn"); pFzSustain = apvts.getRawParameterValue ("fzSustain");
     pFzTone = apvts.getRawParameterValue ("fzTone"); pFzLevel = apvts.getRawParameterValue ("fzLevel");
+    pGateOn = apvts.getRawParameterValue ("gateOn"); pGateThr = apvts.getRawParameterValue ("gateThr"); pGateRel = apvts.getRawParameterValue ("gateRel");
+    pCompOn = apvts.getRawParameterValue ("compOn"); pCompThr = apvts.getRawParameterValue ("compThr");
+    pCompRatio = apvts.getRawParameterValue ("compRatio"); pCompMakeup = apvts.getRawParameterValue ("compMakeup");
+    pEqOn = apvts.getRawParameterValue ("eqOn"); pEqLow = apvts.getRawParameterValue ("eqLow");
+    pEqMid = apvts.getRawParameterValue ("eqMid"); pEqHigh = apvts.getRawParameterValue ("eqHigh");
+    pEqMidFreq = apvts.getRawParameterValue ("eqMidFreq"); pEqMidQ = apvts.getRawParameterValue ("eqMidQ");
+    pEqHP = apvts.getRawParameterValue ("eqHP"); pEqLP = apvts.getRawParameterValue ("eqLP");
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout GuitarRigDSPAudioProcessor::createLayout()
@@ -119,6 +126,24 @@ juce::AudioProcessorValueTreeState::ParameterLayout GuitarRigDSPAudioProcessor::
     layout.add (std::make_unique<PF> (juce::ParameterID{"fzSustain",1}, "Fuzz Sustain", range, 0.6f));
     layout.add (std::make_unique<PF> (juce::ParameterID{"fzTone",1},    "Fuzz Tone",    range, 0.5f));
     layout.add (std::make_unique<PF> (juce::ParameterID{"fzLevel",1},   "Fuzz Level",   range, 0.6f));
+    // Noise Gate (frente)
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"gateOn",1}, "Gate On", false));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"gateThr",1}, "Gate Thresh", juce::NormalisableRange<float>(-90.0f,0.0f,0.1f), -60.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"gateRel",1}, "Gate Release", juce::NormalisableRange<float>(10.0f,600.0f,1.0f), 120.0f));
+    // Compressor (frente)
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"compOn",1}, "Comp On", false));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"compThr",1},   "Comp Thresh", juce::NormalisableRange<float>(-60.0f,0.0f,0.1f), -24.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"compRatio",1}, "Comp Ratio",  juce::NormalisableRange<float>(1.0f,20.0f,0.1f), 4.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"compMakeup",1},"Comp Makeup", juce::NormalisableRange<float>(0.0f,24.0f,0.1f), 0.0f));
+    // EQ paramétrico (pós-cab)
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"eqOn",1}, "EQ On", false));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"eqLow",1},  "EQ Low",  juce::NormalisableRange<float>(-18.0f,18.0f,0.1f), 0.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"eqMid",1},  "EQ Mid",  juce::NormalisableRange<float>(-18.0f,18.0f,0.1f), 0.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"eqHigh",1}, "EQ High", juce::NormalisableRange<float>(-18.0f,18.0f,0.1f), 0.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"eqMidFreq",1}, "EQ Mid Freq", juce::NormalisableRange<float>(200.0f,5000.0f,1.0f,0.35f), 800.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"eqMidQ",1},    "EQ Mid Q",    juce::NormalisableRange<float>(0.2f,8.0f,0.01f), 1.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"eqHP",1},  "EQ HighPass", juce::NormalisableRange<float>(20.0f,400.0f,1.0f,0.4f), 20.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"eqLP",1},  "EQ LowPass",  juce::NormalisableRange<float>(2000.0f,20000.0f,1.0f,0.4f), 20000.0f));
     return layout;
 }
 
@@ -233,6 +258,34 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const double fzToneA = lpCoef (700.0 * std::pow (10.0, fzTone * 0.8), fsOS);
     const double fzPre = 4.0 + fzSustain * 86.0, fzB = std::tanh (0.05);
 
+    // ── Gate + Compressor (Sprints 9-10): base rate, ANTES do oversampling ──
+    const bool gateOn = pGateOn && pGateOn->load() > 0.5f;
+    const double gThr = std::pow (10.0, (pGateThr ? pGateThr->load() : -60.0) / 20.0);
+    const double gRel = std::exp (-1.0 / (((pGateRel ? pGateRel->load() : 120.0) / 1000.0) * fs));
+    const bool compOn = pCompOn && pCompOn->load() > 0.5f;
+    const double cThr = std::pow (10.0, (pCompThr ? pCompThr->load() : -24.0) / 20.0);
+    const double cRatio = pCompRatio ? pCompRatio->load() : 4.0;
+    const double cMakeup = std::pow (10.0, (pCompMakeup ? pCompMakeup->load() : 0.0) / 20.0);
+    const double cAtt = std::exp (-1.0 / (0.005 * fs)), cRel = std::exp (-1.0 / (0.12 * fs));
+    if (gateOn || compOn)
+    {
+        const int nb = juce::jmin (getTotalNumInputChannels(), (int) chans.size());
+        for (int ch = 0; ch < nb; ++ch)
+        {
+            float* d = buffer.getWritePointer (ch);
+            Ch& c = chans[(size_t) ch];
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                double x = d[i];
+                if (gateOn) { double lvl = std::abs (x); c.gateEnv = lvl > c.gateEnv ? lvl : lvl + (c.gateEnv - lvl) * gRel;
+                              double g = c.gateEnv >= gThr ? 1.0 : c.gateEnv / gThr; x *= g * g; }
+                if (compOn) { double lvl = std::abs (x); double co = lvl > c.compEnv ? cAtt : cRel; c.compEnv = lvl + (c.compEnv - lvl) * co;
+                              double over = c.compEnv / cThr; double g = over > 1.0 ? std::pow (over, 1.0 / cRatio - 1.0) : 1.0; x *= g * cMakeup; }
+                d[i] = (float) x;
+            }
+        }
+    }
+
     juce::dsp::AudioBlock<float> block (buffer);
     auto up = oversampling->processSamplesUp (block);
     const int nCh = juce::jmin ((int) up.getNumChannels(), (int) chans.size());
@@ -299,6 +352,34 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     }
 
     oversampling->processSamplesDown (block);
+
+    // ── EQ paramétrico (Sprint 11): base rate, PÓS-cab ──
+    if (pEqOn && pEqOn->load() > 0.5f)
+    {
+        const double lowDb = pEqLow->load(), midDb = pEqMid->load(), highDb = pEqHigh->load();
+        const double midF = pEqMidFreq->load(), midQ = pEqMidQ->load(), hpF = pEqHP->load(), lpF = pEqLP->load();
+        for (auto& c : chans)
+        {
+            c.eqHP.highpass   (fs, hpF, 0.7);
+            c.eqLowF.lowShelf (fs, 120.0, lowDb);
+            c.eqMidF.peaking  (fs, midF, midQ, midDb);
+            c.eqHighF.highShelf (fs, 3500.0, highDb);
+            c.eqLP.lowpass    (fs, juce::jmin (lpF, fs * 0.45), 0.7);
+        }
+        const int nb = juce::jmin (getTotalNumOutputChannels(), (int) chans.size());
+        for (int ch = 0; ch < nb; ++ch)
+        {
+            float* d = buffer.getWritePointer (ch);
+            Ch& c = chans[(size_t) ch];
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                double x = d[i];
+                x = c.eqHP.process (x); x = c.eqLowF.process (x); x = c.eqMidF.process (x);
+                x = c.eqHighF.process (x); x = c.eqLP.process (x);
+                d[i] = (float) x;
+            }
+        }
+    }
 }
 
 void GuitarRigDSPAudioProcessor::getStateInformation (juce::MemoryBlock& destData)

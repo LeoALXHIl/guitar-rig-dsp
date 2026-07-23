@@ -111,9 +111,13 @@ private:
         OnePole dc, cpl0, cpl1, xfmrHP;
         Biquad bassF, midF, trebF, presF, depthF, xfmrRes;
         double sagEnv = 0;
+        // gate + compressor (base rate, antes do amp)
+        double gateEnv = 0, compEnv = 0;
         // pedais de sujeira (na região 4×, antes do amp)
         double odLp = 0;                 // tone do overdrive
         OnePole fzDc; double fzMid = 0, fzToneLp = 0;   // fuzz
+        // EQ paramétrico (base rate, pós-cab)
+        Biquad eqHP, eqLowF, eqMidF, eqHighF, eqLP;
         // cabinet (aplicado pós power amp, à taxa 4×) — porta do makeCabMicIR do web
         Biquad cHP, cRes, cBody, cPres, cLP, cShelf;
         Biquad cBreak[5]; int nBreak = 0;
@@ -121,7 +125,8 @@ private:
         double comb[2048] = {0}; int combW = 0;
         void reset() { miller[0]=miller[1]=miller[2]=miller[3]=0; dc.reset(); cpl0.reset(); cpl1.reset(); xfmrHP.reset();
                        bassF.reset(); midF.reset(); trebF.reset(); presF.reset(); depthF.reset(); xfmrRes.reset(); sagEnv=0;
-                       odLp=0; fzDc.reset(); fzMid=0; fzToneLp=0;
+                       odLp=0; fzDc.reset(); fzMid=0; fzToneLp=0; gateEnv=0; compEnv=0;
+                       eqHP.reset(); eqLowF.reset(); eqMidF.reset(); eqHighF.reset(); eqLP.reset();
                        cHP.reset(); cRes.reset(); cBody.reset(); cPres.reset(); cLP.reset(); cShelf.reset();
                        for (auto& b : cBreak) b.reset(); for (auto& b : cMicPk) b.reset();
                        for (auto& x : comb) x = 0; combW = 0; }
@@ -155,6 +160,10 @@ private:
     std::atomic<float>* pDistance = nullptr;
     std::atomic<float>* pOdOn = nullptr;  std::atomic<float>* pOdDrive = nullptr; std::atomic<float>* pOdTone = nullptr; std::atomic<float>* pOdLevel = nullptr;
     std::atomic<float>* pFzOn = nullptr;  std::atomic<float>* pFzSustain = nullptr; std::atomic<float>* pFzTone = nullptr; std::atomic<float>* pFzLevel = nullptr;
+    std::atomic<float>* pGateOn = nullptr; std::atomic<float>* pGateThr = nullptr; std::atomic<float>* pGateRel = nullptr;
+    std::atomic<float>* pCompOn = nullptr; std::atomic<float>* pCompThr = nullptr; std::atomic<float>* pCompRatio = nullptr; std::atomic<float>* pCompMakeup = nullptr;
+    std::atomic<float>* pEqOn = nullptr; std::atomic<float>* pEqLow = nullptr; std::atomic<float>* pEqMid = nullptr; std::atomic<float>* pEqHigh = nullptr;
+    std::atomic<float>* pEqMidFreq = nullptr; std::atomic<float>* pEqMidQ = nullptr; std::atomic<float>* pEqHP = nullptr; std::atomic<float>* pEqLP = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarRigDSPAudioProcessor)
 };
