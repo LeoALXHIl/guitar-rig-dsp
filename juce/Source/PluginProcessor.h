@@ -64,6 +64,16 @@ private:
             double c = std::cos (w0), al = std::sin (w0)/(2*Q);
             norm (1+al*A, -2*c, 1-al*A, 1+al/A, -2*c, 1-al/A);
         }
+        void highpass (double fs, double f0, double Q)
+        {
+            double w0 = 2*M_PI*f0/fs, c = std::cos (w0), al = std::sin (w0)/(2*Q);
+            norm ((1+c)/2, -(1+c), (1+c)/2, 1+al, -2*c, 1-al);
+        }
+        void lowpass (double fs, double f0, double Q)
+        {
+            double w0 = 2*M_PI*f0/fs, c = std::cos (w0), al = std::sin (w0)/(2*Q);
+            norm ((1-c)/2, 1-c, (1-c)/2, 1+al, -2*c, 1-al);
+        }
         void lowShelf (double fs, double f0, double dB)
         {
             double A = std::pow (10.0, dB/40.0), w0 = 2*M_PI*f0/fs;
@@ -101,8 +111,16 @@ private:
         OnePole dc, cpl0, cpl1, xfmrHP;
         Biquad bassF, midF, trebF, presF, depthF, xfmrRes;
         double sagEnv = 0;
+        // cabinet (aplicado pós power amp, à taxa 4×) — porta do makeCabMicIR do web
+        Biquad cHP, cRes, cBody, cPres, cLP, cShelf;
+        Biquad cBreak[5]; int nBreak = 0;
+        Biquad cMicPk[2]; int nMicPk = 0;
+        double comb[2048] = {0}; int combW = 0;
         void reset() { miller[0]=miller[1]=miller[2]=miller[3]=0; dc.reset(); cpl0.reset(); cpl1.reset(); xfmrHP.reset();
-                       bassF.reset(); midF.reset(); trebF.reset(); presF.reset(); depthF.reset(); xfmrRes.reset(); sagEnv=0; }
+                       bassF.reset(); midF.reset(); trebF.reset(); presF.reset(); depthF.reset(); xfmrRes.reset(); sagEnv=0;
+                       cHP.reset(); cRes.reset(); cBody.reset(); cPres.reset(); cLP.reset(); cShelf.reset();
+                       for (auto& b : cBreak) b.reset(); for (auto& b : cMicPk) b.reset();
+                       for (auto& x : comb) x = 0; combW = 0; }
     };
     std::vector<Ch> chans;
 
@@ -125,6 +143,12 @@ private:
     std::atomic<float>* pModel = nullptr;    // 0=800 1=5150 2=Twin 3=Recto
     std::atomic<float>* pChannel = nullptr;  // 0..2 (depende do amp)
     std::atomic<float>* pBright = nullptr;
+    std::atomic<float>* pCabOn = nullptr;
+    std::atomic<float>* pCab = nullptr;       // 0=4x12 1=2x12 2=1x12
+    std::atomic<float>* pSpeaker = nullptr;   // 0=v30 1=green 2=cream
+    std::atomic<float>* pMic = nullptr;       // 0=sm57 1=md421 2=r121
+    std::atomic<float>* pAxis = nullptr;
+    std::atomic<float>* pDistance = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarRigDSPAudioProcessor)
 };

@@ -32,6 +32,22 @@ namespace
         { {{2.2,14},{2.2,15},{1.8,11},{1.5,8}}, {0.16,0.11,0.07,0.05}, {5000,5500,5000,5000}, 8000,
           {180,100}, 300, 700,0.9,-18,2, 3500,85, {0.4,4.2},0.5,80,4, 2, {{0.72,3},{1.0,4},{1.0,4}} },
     };
+
+    // ── Cabinet: CABS / SPEAKERS / MICS (idênticos ao makeCabMicIR do web) ──
+    struct CabModel { double hp, resHz, resGain; };
+    const CabModel CABS[3] = { {78,85,6}, {85,100,5}, {95,120,4} };   // 4x12, 2x12, 1x12
+    struct SpeakerModel { double bodyHz, bodyGain, presHz, presGain, topHz; int nBreak; double breakup[5][3]; };
+    const SpeakerModel SPEAKERS[3] = {
+        { 480,-3, 2600,6, 5200, 5, {{1500,1.8,3},{2100,2.2,-4},{2900,2.5,5},{3800,2.2,-3},{4600,2.0,2}} }, // v30
+        { 520, 4, 1800,2, 4400, 4, {{1400,1.6,2},{2200,2.0,-2},{3000,2.0,2},{3900,1.8,-3},{0,0,0}} },      // green
+        { 500, 1, 2200,4, 4900, 4, {{1600,1.8,2},{2400,2.2,3},{3300,2.2,-3},{4400,2.0,2},{0,0,0}} },       // cream
+    };
+    struct MicModel { int nPk; double pk[2][3]; double shelfHz, shelfGain, topHz; };
+    const MicModel MICS[3] = {
+        { 2, {{5500,1.0,5},{3000,0.8,2}}, 120,-2, 6500 },   // sm57
+        { 2, {{8000,0.9,3},{4500,0.8,2}},  90, 2, 9000 },   // md421
+        { 1, {{2000,0.7,2},{0,0,0}},      100, 3, 3800 },   // r121
+    };
 }
 
 GuitarRigDSPAudioProcessor::GuitarRigDSPAudioProcessor()
@@ -51,6 +67,12 @@ GuitarRigDSPAudioProcessor::GuitarRigDSPAudioProcessor()
     pModel    = apvts.getRawParameterValue ("model");
     pChannel  = apvts.getRawParameterValue ("channel");
     pBright   = apvts.getRawParameterValue ("bright");
+    pCabOn    = apvts.getRawParameterValue ("cabOn");
+    pCab      = apvts.getRawParameterValue ("cab");
+    pSpeaker  = apvts.getRawParameterValue ("speaker");
+    pMic      = apvts.getRawParameterValue ("mic");
+    pAxis     = apvts.getRawParameterValue ("axis");
+    pDistance = apvts.getRawParameterValue ("distance");
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout GuitarRigDSPAudioProcessor::createLayout()
@@ -72,6 +94,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout GuitarRigDSPAudioProcessor::
     layout.add (std::make_unique<PF> (juce::ParameterID{"depth",1},    "Depth/Resonance", range, 0.35f));
     layout.add (std::make_unique<PF> (juce::ParameterID{"master",1},   "Master",   range, 0.6f));
     layout.add (std::make_unique<PF> (juce::ParameterID{"output",1},   "Output",   range, 0.7f));
+
+    layout.add (std::make_unique<juce::AudioParameterBool>   (juce::ParameterID{"cabOn",1}, "Cab On", true));
+    layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID{"cab",1}, "Cabinet",
+        juce::StringArray { "4x12", "2x12", "1x12" }, 0));
+    layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID{"speaker",1}, "Speaker",
+        juce::StringArray { "V30", "Greenback", "Creamback" }, 0));
+    layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID{"mic",1}, "Mic",
+        juce::StringArray { "SM57", "MD421", "R121" }, 0));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"axis",1},     "Mic Axis",     range, 0.25f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"distance",1}, "Mic Distance", range, 0.30f));
     return layout;
 }
 
@@ -144,6 +176,32 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         c.xfmrRes.peaking (fsOS, V.xfmrResHz, 1.1, V.xfmrResGain);
     }
 
+    // ── cabinet (Sprint 1): coeficientes por bloco (à taxa 4×) ──
+    const bool cabOn = pCabOn ? pCabOn->load() > 0.5f : true;
+    const int cabIdx = juce::jlimit (0, 2, (int) std::lround (pCab ? pCab->load() : 0.0f));
+    const int spkIdx = juce::jlimit (0, 2, (int) std::lround (pSpeaker ? pSpeaker->load() : 0.0f));
+    const int micIdx = juce::jlimit (0, 2, (int) std::lround (pMic ? pMic->load() : 0.0f));
+    const double axis = pAxis ? pAxis->load() : 0.25, dist = pDistance ? pDistance->load() : 0.3;
+    const CabModel& CB = CABS[cabIdx]; const SpeakerModel& SP = SPEAKERS[spkIdx]; const MicModel& MC = MICS[micIdx];
+    const double axisTop = 8000.0 - axis * 5500.0;
+    const double cabLPf  = juce::jmax (500.0, juce::jmin (juce::jmin (SP.topHz, MC.topHz), axisTop));
+    const double combDelay = (0.08 + dist * 0.5) / 1000.0 * fsOS;
+    const double combGain  = -0.4 * (0.25 + dist * 0.75);
+    if (cabOn)
+        for (auto& c : chans)
+        {
+            c.cHP.highpass  (fsOS, CB.hp, 0.7);
+            c.cRes.peaking  (fsOS, CB.resHz, 1.1, CB.resGain + (1.0 - dist) * 2.0);
+            c.cBody.peaking (fsOS, SP.bodyHz, 1.0, SP.bodyGain);
+            c.cPres.peaking (fsOS, SP.presHz, 1.2, SP.presGain);
+            c.nBreak = SP.nBreak;
+            for (int b = 0; b < SP.nBreak; ++b) c.cBreak[b].peaking (fsOS, SP.breakup[b][0], SP.breakup[b][1], SP.breakup[b][2]);
+            c.nMicPk = MC.nPk;
+            for (int b = 0; b < MC.nPk; ++b) c.cMicPk[b].peaking (fsOS, MC.pk[b][0], MC.pk[b][1], MC.pk[b][2]);
+            c.cShelf.lowShelf (fsOS, MC.shelfHz, MC.shelfGain);
+            c.cLP.lowpass (fsOS, cabLPf, 0.8);
+        }
+
     juce::dsp::AudioBlock<float> block (buffer);
     auto up = oversampling->processSamplesUp (block);
     const int nCh = juce::jmin ((int) up.getNumChannels(), (int) chans.size());
@@ -176,6 +234,19 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             s = std::tanh (pGainAmp * sag * s);
             s = highpass (s, c.xfmrHP, xfmrHPr);
             s = c.xfmrRes.process (s);
+            if (cabOn)
+            {
+                s = c.cHP.process (s); s = c.cRes.process (s); s = c.cBody.process (s); s = c.cPres.process (s);
+                for (int b = 0; b < c.nBreak; ++b) s = c.cBreak[b].process (s);
+                for (int b = 0; b < c.nMicPk; ++b) s = c.cMicPk[b].process (s);
+                s = c.cShelf.process (s); s = c.cLP.process (s);
+                double rp = c.combW - combDelay; while (rp < 0) rp += 2048.0;
+                int i0 = (int) rp; double frac = rp - i0;
+                double a0 = c.comb[i0 & 2047], a1 = c.comb[(i0 + 1) & 2047];
+                double delayed = a0 + (a1 - a0) * frac;
+                c.comb[c.combW] = s; c.combW = (c.combW + 1) & 2047;
+                s = (s + combGain * delayed) * 1.4;   // makeup leve p/ compensar o rolloff do cab
+            }
             d[i] = (float) (s * 0.7 * outGain);
         }
     }
