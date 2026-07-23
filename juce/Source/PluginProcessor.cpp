@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
 
 // ── VOICES: idênticas ao amp-processor.js do web (4 amps + canais) ──
 namespace
@@ -521,6 +522,11 @@ void GuitarRigDSPAudioProcessor::setStateInformation (const void* data, int size
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
         if (xml->hasTagName (apvts.state.getType()))
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
+}
+
+juce::AudioProcessorEditor* GuitarRigDSPAudioProcessor::createEditor()
+{
+    return new GuitarRigDSPAudioProcessorEditor (*this);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

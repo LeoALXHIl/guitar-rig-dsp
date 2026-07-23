@@ -23,7 +23,8 @@ juce_add_plugin(GuitarRigDSP
   COPY_PLUGIN_AFTER_BUILD   FALSE)         # NÃO copia pro Program Files (evita erro de admin); instala-se manualmente
 
 target_sources(GuitarRigDSP PRIVATE
-  Source/PluginProcessor.cpp)
+  Source/PluginProcessor.cpp
+  Source/PluginEditor.cpp)
 
 target_compile_features(GuitarRigDSP PRIVATE cxx_std_17)
 
