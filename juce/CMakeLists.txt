@@ -20,7 +20,7 @@ juce_add_plugin(GuitarRigDSP
   NEEDS_MIDI_INPUT          FALSE
   NEEDS_MIDI_OUTPUT         FALSE
   IS_MIDI_EFFECT            FALSE
-  COPY_PLUGIN_AFTER_BUILD   TRUE)          # instala o VST3 na pasta padrão ao buildar
+  COPY_PLUGIN_AFTER_BUILD   FALSE)         # NÃO copia pro Program Files (evita erro de admin); instala-se manualmente
 
 target_sources(GuitarRigDSP PRIVATE
   Source/PluginProcessor.cpp)
