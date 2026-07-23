@@ -84,6 +84,14 @@ GuitarRigDSPAudioProcessor::GuitarRigDSPAudioProcessor()
     pEqMid = apvts.getRawParameterValue ("eqMid"); pEqHigh = apvts.getRawParameterValue ("eqHigh");
     pEqMidFreq = apvts.getRawParameterValue ("eqMidFreq"); pEqMidQ = apvts.getRawParameterValue ("eqMidQ");
     pEqHP = apvts.getRawParameterValue ("eqHP"); pEqLP = apvts.getRawParameterValue ("eqLP");
+    pDlyOn = apvts.getRawParameterValue ("dlyOn"); pDlyTime = apvts.getRawParameterValue ("dlyTime");
+    pDlyFb = apvts.getRawParameterValue ("dlyFb"); pDlyTone = apvts.getRawParameterValue ("dlyTone"); pDlyMix = apvts.getRawParameterValue ("dlyMix");
+    pRvOn = apvts.getRawParameterValue ("rvOn"); pRvSize = apvts.getRawParameterValue ("rvSize");
+    pRvDamp = apvts.getRawParameterValue ("rvDamp"); pRvMix = apvts.getRawParameterValue ("rvMix");
+    pChoOn = apvts.getRawParameterValue ("choOn"); pChoRate = apvts.getRawParameterValue ("choRate");
+    pChoDepth = apvts.getRawParameterValue ("choDepth"); pChoMix = apvts.getRawParameterValue ("choMix");
+    pPhOn = apvts.getRawParameterValue ("phOn"); pPhRate = apvts.getRawParameterValue ("phRate");
+    pPhDepth = apvts.getRawParameterValue ("phDepth"); pPhFb = apvts.getRawParameterValue ("phFb"); pPhMix = apvts.getRawParameterValue ("phMix");
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout GuitarRigDSPAudioProcessor::createLayout()
@@ -144,6 +152,28 @@ juce::AudioProcessorValueTreeState::ParameterLayout GuitarRigDSPAudioProcessor::
     layout.add (std::make_unique<PF> (juce::ParameterID{"eqMidQ",1},    "EQ Mid Q",    juce::NormalisableRange<float>(0.2f,8.0f,0.01f), 1.0f));
     layout.add (std::make_unique<PF> (juce::ParameterID{"eqHP",1},  "EQ HighPass", juce::NormalisableRange<float>(20.0f,400.0f,1.0f,0.4f), 20.0f));
     layout.add (std::make_unique<PF> (juce::ParameterID{"eqLP",1},  "EQ LowPass",  juce::NormalisableRange<float>(2000.0f,20000.0f,1.0f,0.4f), 20000.0f));
+    // Delay
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"dlyOn",1}, "Delay On", false));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"dlyTime",1}, "Delay Time", juce::NormalisableRange<float>(0.02f,1.2f,0.001f,0.4f), 0.35f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"dlyFb",1},   "Delay Feedback", juce::NormalisableRange<float>(0.0f,0.95f,0.001f), 0.35f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"dlyTone",1}, "Delay Tone", range, 0.5f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"dlyMix",1},  "Delay Mix",  range, 0.3f));
+    // Reverb
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"rvOn",1}, "Reverb On", false));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"rvSize",1}, "Reverb Size", range, 0.6f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"rvDamp",1}, "Reverb Damp", range, 0.5f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"rvMix",1},  "Reverb Mix",  range, 0.25f));
+    // Chorus
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"choOn",1}, "Chorus On", false));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"choRate",1},  "Chorus Rate",  range, 0.3f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"choDepth",1}, "Chorus Depth", range, 0.5f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"choMix",1},   "Chorus Mix",   range, 0.5f));
+    // Phaser
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"phOn",1}, "Phaser On", false));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"phRate",1},  "Phaser Rate",  range, 0.3f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"phDepth",1}, "Phaser Depth", range, 0.7f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"phFb",1},    "Phaser Feedback", juce::NormalisableRange<float>(0.0f,0.9f,0.001f), 0.3f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"phMix",1},   "Phaser Mix",   range, 0.5f));
     return layout;
 }
 
@@ -164,6 +194,23 @@ void GuitarRigDSPAudioProcessor::prepareToPlay (double sampleRate, int samplesPe
     for (auto& c : chans) c.reset();
     sGain = pGain ? pGain->load() : 0.6f;
     sMaster = pMaster ? pMaster->load() : 0.6f;
+
+    // buffers dos efeitos de tempo (delay/chorus/reverb) por canal
+    static const int combTun[8] = { 1116,1188,1277,1356,1422,1491,1557,1617 };
+    static const int apTun[4]   = { 556,441,341,225 };
+    const double rvScale = sampleRate / 44100.0;
+    const int dlyLen = (int) (sampleRate * 1.3) + 4;
+    const int choLen = (int) (sampleRate * 0.05) + 4;
+    for (size_t ci = 0; ci < chans.size(); ++ci)
+    {
+        auto& c = chans[ci];
+        const int spread = (ci == 1) ? 23 : 0;   // stereospread do Freeverb (largura L/R)
+        c.dlyBuf.assign ((size_t) dlyLen, 0.0f); c.dlyW = 0; c.dlyToneLp = 0;
+        c.choBuf.assign ((size_t) choLen, 0.0f); c.choW = 0; c.choPhase = 0;
+        for (int k = 0; k < 8; ++k) { c.combBuf[k].assign ((size_t) ((int) (combTun[k] * rvScale) + spread + 1), 0.0f); c.combI[k] = 0; c.combF[k] = 0; }
+        for (int k = 0; k < 4; ++k) { c.apBuf[k].assign   ((size_t) ((int) (apTun[k]   * rvScale) + spread + 1), 0.0f); c.apI[k] = 0; }
+        for (int k = 0; k < 6; ++k) c.phZ[k] = 0; c.phFb = 0; c.phPhase = 0;
+    }
 }
 
 bool GuitarRigDSPAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -376,6 +423,87 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 double x = d[i];
                 x = c.eqHP.process (x); x = c.eqLowF.process (x); x = c.eqMidF.process (x);
                 x = c.eqHighF.process (x); x = c.eqLP.process (x);
+                d[i] = (float) x;
+            }
+        }
+    }
+
+    // ── Tempo/modulação (Sprints 12-14): base rate, pós-EQ → Chorus → Phaser → Delay → Reverb ──
+    const bool choOn = pChoOn && pChoOn->load() > 0.5f;
+    const bool phOn  = pPhOn  && pPhOn->load()  > 0.5f;
+    const bool dlyOn = pDlyOn && pDlyOn->load() > 0.5f;
+    const bool rvOn  = pRvOn  && pRvOn->load()  > 0.5f;
+    if (choOn || phOn || dlyOn || rvOn)
+    {
+        const double choRate = 0.1 + (pChoRate ? pChoRate->load() : 0.3) * 5.9;
+        const double choDepth = (pChoDepth ? pChoDepth->load() : 0.5) * 0.005 * fs;
+        const double choBase = 0.008 * fs, choMix = pChoMix ? pChoMix->load() : 0.5;
+        const double choInc = 2.0 * M_PI * choRate / fs;
+        const double phRate = 0.05 + (pPhRate ? pPhRate->load() : 0.3) * 3.95;
+        const double phDepth = pPhDepth ? pPhDepth->load() : 0.7, phFbAmt = pPhFb ? pPhFb->load() : 0.3, phMix = pPhMix ? pPhMix->load() : 0.5;
+        const double phInc = 2.0 * M_PI * phRate / fs;
+        const double dlySamp = (pDlyTime ? pDlyTime->load() : 0.35) * fs;
+        const double dlyFb = pDlyFb ? pDlyFb->load() : 0.35, dlyMix = pDlyMix ? pDlyMix->load() : 0.3;
+        const double dlyToneA = lpCoef (juce::jmin (500.0 * std::pow (10.0, (pDlyTone ? pDlyTone->load() : 0.5)), fs * 0.45), fs);
+        const double rvFb = (pRvSize ? pRvSize->load() : 0.6) * 0.28 + 0.7, rvDamp = (pRvDamp ? pRvDamp->load() : 0.5) * 0.4, rvMix = pRvMix ? pRvMix->load() : 0.25;
+        const int nb = juce::jmin (getTotalNumOutputChannels(), (int) chans.size());
+        for (int ch = 0; ch < nb; ++ch)
+        {
+            float* d = buffer.getWritePointer (ch);
+            Ch& c = chans[(size_t) ch];
+            const double lfoOff = (ch == 1) ? M_PI / 2 : 0.0;
+            const int dN = (int) c.dlyBuf.size(), cN = (int) c.choBuf.size();
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                double x = d[i];
+                if (choOn && cN > 8) {
+                    double lfo = std::sin (c.choPhase + lfoOff);
+                    double dd = choBase + choDepth * (0.5 + 0.5 * lfo);
+                    double rpos = c.choW - dd; while (rpos < 0) rpos += cN;
+                    int i0 = (int) rpos; double fr = rpos - i0;
+                    double wet = c.choBuf[i0 % cN] + (c.choBuf[(i0 + 1) % cN] - c.choBuf[i0 % cN]) * fr;
+                    c.choBuf[c.choW] = (float) x; c.choW = (c.choW + 1) % cN;
+                    c.choPhase += choInc; if (c.choPhase > 2 * M_PI) c.choPhase -= 2 * M_PI;
+                    x = x * (1.0 - choMix * 0.5) + wet * choMix;
+                }
+                if (phOn) {
+                    double lfo = std::sin (c.phPhase + lfoOff);
+                    double f = 300.0 * std::pow (2300.0 / 300.0, 0.5 + 0.5 * lfo * phDepth);
+                    double tw = std::tan (M_PI * juce::jmin (f, fs * 0.45) / fs);
+                    double g = (tw - 1.0) / (tw + 1.0);
+                    double s = x + phFbAmt * c.phFb;
+                    for (int k = 0; k < 6; ++k) { double y = g * s + c.phZ[k]; c.phZ[k] = s - g * y; s = y; }
+                    c.phFb = s;
+                    c.phPhase += phInc; if (c.phPhase > 2 * M_PI) c.phPhase -= 2 * M_PI;
+                    x = x * (1.0 - phMix) + s * phMix;
+                }
+                if (dlyOn && dN > 8) {
+                    double rpos = c.dlyW - dlySamp; while (rpos < 0) rpos += dN;
+                    int i0 = (int) rpos; double fr = rpos - i0;
+                    double rd = c.dlyBuf[i0 % dN] + (c.dlyBuf[(i0 + 1) % dN] - c.dlyBuf[i0 % dN]) * fr;
+                    c.dlyToneLp += dlyToneA * (rd - c.dlyToneLp); double rdT = c.dlyToneLp;
+                    c.dlyBuf[c.dlyW] = (float) (x + rdT * dlyFb); c.dlyW = (c.dlyW + 1) % dN;
+                    x = x * (1.0 - dlyMix) + rdT * dlyMix;
+                }
+                if (rvOn) {
+                    double input = x * 0.015, out = 0.0;
+                    for (int k = 0; k < 8; ++k) {
+                        int n = (int) c.combBuf[k].size(); if (n < 1) continue;
+                        double y = c.combBuf[k][c.combI[k]];
+                        c.combF[k] = y * (1.0 - rvDamp) + c.combF[k] * rvDamp;
+                        c.combBuf[k][c.combI[k]] = (float) (input + c.combF[k] * rvFb);
+                        c.combI[k] = (c.combI[k] + 1) % n; out += y;
+                    }
+                    double s = out;
+                    for (int k = 0; k < 4; ++k) {
+                        int n = (int) c.apBuf[k].size(); if (n < 1) continue;
+                        double bufout = c.apBuf[k][c.apI[k]];
+                        double o = -s + bufout;
+                        c.apBuf[k][c.apI[k]] = (float) (s + bufout * 0.5);
+                        c.apI[k] = (c.apI[k] + 1) % n; s = o;
+                    }
+                    x = x * (1.0 - rvMix) + s * rvMix;
+                }
                 d[i] = (float) x;
             }
         }

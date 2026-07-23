@@ -118,6 +118,12 @@ private:
         OnePole fzDc; double fzMid = 0, fzToneLp = 0;   // fuzz
         // EQ paramétrico (base rate, pós-cab)
         Biquad eqHP, eqLowF, eqMidF, eqHighF, eqLP;
+        // efeitos de tempo/modulação (base rate, pós-EQ)
+        std::vector<float> dlyBuf; int dlyW = 0; double dlyToneLp = 0;      // delay
+        std::vector<float> choBuf; int choW = 0; double choPhase = 0;        // chorus
+        std::vector<float> combBuf[8]; int combI[8] = {0}; double combF[8] = {0}; // reverb comb
+        std::vector<float> apBuf[4];   int apI[4] = {0};                     // reverb allpass
+        double phZ[6] = {0}, phFb = 0, phPhase = 0;                          // phaser
         // cabinet (aplicado pós power amp, à taxa 4×) — porta do makeCabMicIR do web
         Biquad cHP, cRes, cBody, cPres, cLP, cShelf;
         Biquad cBreak[5]; int nBreak = 0;
@@ -164,6 +170,10 @@ private:
     std::atomic<float>* pCompOn = nullptr; std::atomic<float>* pCompThr = nullptr; std::atomic<float>* pCompRatio = nullptr; std::atomic<float>* pCompMakeup = nullptr;
     std::atomic<float>* pEqOn = nullptr; std::atomic<float>* pEqLow = nullptr; std::atomic<float>* pEqMid = nullptr; std::atomic<float>* pEqHigh = nullptr;
     std::atomic<float>* pEqMidFreq = nullptr; std::atomic<float>* pEqMidQ = nullptr; std::atomic<float>* pEqHP = nullptr; std::atomic<float>* pEqLP = nullptr;
+    std::atomic<float>* pDlyOn = nullptr; std::atomic<float>* pDlyTime = nullptr; std::atomic<float>* pDlyFb = nullptr; std::atomic<float>* pDlyTone = nullptr; std::atomic<float>* pDlyMix = nullptr;
+    std::atomic<float>* pRvOn = nullptr; std::atomic<float>* pRvSize = nullptr; std::atomic<float>* pRvDamp = nullptr; std::atomic<float>* pRvMix = nullptr;
+    std::atomic<float>* pChoOn = nullptr; std::atomic<float>* pChoRate = nullptr; std::atomic<float>* pChoDepth = nullptr; std::atomic<float>* pChoMix = nullptr;
+    std::atomic<float>* pPhOn = nullptr; std::atomic<float>* pPhRate = nullptr; std::atomic<float>* pPhDepth = nullptr; std::atomic<float>* pPhFb = nullptr; std::atomic<float>* pPhMix = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarRigDSPAudioProcessor)
 };
