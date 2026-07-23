@@ -13,6 +13,7 @@ public:
     void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
     void drawComboBox (juce::Graphics&, int w, int h, bool, int, int, int, int, juce::ComboBox&) override;
     juce::Font getComboBoxFont (juce::ComboBox&) override;
+    void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool, bool) override;
     juce::Colour accent { 0xffe0a24a };
 };
 
@@ -48,10 +49,12 @@ public:
     void timerCallback() override;
 
 private:
+    void showPage (int idx);
     GuitarRigDSPAudioProcessor& proc;
     GrdLookAndFeel lnf;
-    juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
-    juce::OwnedArray<GrdPage> pages;
+    juce::OwnedArray<juce::TextButton> chips;   // barra de módulos (esquerda)
+    juce::OwnedArray<GrdPage> pages;            // painel de cada módulo (só 1 visível)
+    int current = 0;
     float meterDisp = 0.0f, meterPeak = 0.0f; int peakHold = 0, lastModel = -1;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarRigDSPAudioProcessorEditor)
 };

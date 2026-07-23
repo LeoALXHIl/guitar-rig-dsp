@@ -73,6 +73,17 @@ void GrdLookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, i
 
 juce::Font GrdLookAndFeel::getComboBoxFont (juce::ComboBox&) { return juce::Font (13.0f, juce::Font::bold); }
 
+void GrdLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&, bool hl, bool)
+{
+    auto r = b.getLocalBounds().toFloat().reduced (1.0f);
+    bool on = b.getToggleState();
+    g.setColour (on ? accent.withAlpha (0.16f) : juce::Colour (0xff17181b));
+    g.fillRoundedRectangle (r, 8.0f);
+    g.setColour (on ? accent : (hl ? juce::Colour (0xff45464d) : juce::Colour (0xff26272d)));
+    g.drawRoundedRectangle (r, 8.0f, on ? 1.5f : 1.0f);
+    if (on) { g.setColour (accent); g.fillRoundedRectangle (r.getX() + 3.0f, r.getY() + 5.0f, 3.0f, r.getHeight() - 10.0f, 1.5f); }
+}
+
 // ============================== Page ==============================
 GrdPage::GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls, bool amp)
     : isAmp (amp), topPad (amp ? 50 : 14), state (s), controls (std::move (ctls))
@@ -157,42 +168,44 @@ GuitarRigDSPAudioProcessorEditor::GuitarRigDSPAudioProcessorEditor (GuitarRigDSP
     setLookAndFeel (&lnf);
 
     using Ctl = GrdPage::Ctl;
-    auto* ampPage = pages.add (new GrdPage (proc.apvts, {
-        { Ctl::Combo, "model", "Amp" }, { Ctl::Knob, "channel", "Canal" }, { Ctl::Toggle, "bright", "Bright" },
-        { Ctl::Knob, "gain", "Gain" }, { Ctl::Knob, "bass", "Bass" }, { Ctl::Knob, "mid", "Mid" },
-        { Ctl::Knob, "treble", "Treble" }, { Ctl::Knob, "presence", "Presence" }, { Ctl::Knob, "depth", "Depth" },
-        { Ctl::Knob, "master", "Master" }, { Ctl::Knob, "output", "Output" },
-    }, true));
-    auto* pedPage = pages.add (new GrdPage (proc.apvts, {
-        { Ctl::Toggle, "odOn", "OD" }, { Ctl::Knob, "odDrive", "Drive" }, { Ctl::Knob, "odTone", "Tone" }, { Ctl::Knob, "odLevel", "Level" },
-        { Ctl::Toggle, "fzOn", "Fuzz" }, { Ctl::Knob, "fzSustain", "Sustain" }, { Ctl::Knob, "fzTone", "F.Tone" }, { Ctl::Knob, "fzLevel", "F.Level" },
-        { Ctl::Toggle, "gateOn", "Gate" }, { Ctl::Knob, "gateThr", "Thresh" }, { Ctl::Knob, "gateRel", "Release" },
-        { Ctl::Toggle, "compOn", "Comp" }, { Ctl::Knob, "compThr", "C.Thr" }, { Ctl::Knob, "compRatio", "Ratio" }, { Ctl::Knob, "compMakeup", "Makeup" },
-    }));
-    auto* cabPage = pages.add (new GrdPage (proc.apvts, {
-        { Ctl::Toggle, "cabOn", "Cab" }, { Ctl::Combo, "cab", "Caixa" }, { Ctl::Combo, "speaker", "Falante" },
-        { Ctl::Combo, "mic", "Mic" }, { Ctl::Knob, "axis", "Axis" }, { Ctl::Knob, "distance", "Dist" },
-        { Ctl::Toggle, "eqOn", "EQ" }, { Ctl::Knob, "eqLow", "Low" }, { Ctl::Knob, "eqMid", "Mid" }, { Ctl::Knob, "eqHigh", "High" },
-        { Ctl::Knob, "eqMidFreq", "MidFreq" }, { Ctl::Knob, "eqMidQ", "MidQ" }, { Ctl::Knob, "eqHP", "HP" }, { Ctl::Knob, "eqLP", "LP" },
-    }));
-    auto* fxPage = pages.add (new GrdPage (proc.apvts, {
-        { Ctl::Toggle, "choOn", "Chorus" }, { Ctl::Knob, "choRate", "Rate" }, { Ctl::Knob, "choDepth", "Depth" }, { Ctl::Knob, "choMix", "Mix" },
-        { Ctl::Toggle, "phOn", "Phaser" }, { Ctl::Knob, "phRate", "Ph.Rate" }, { Ctl::Knob, "phDepth", "Ph.Depth" }, { Ctl::Knob, "phFb", "Ph.FB" }, { Ctl::Knob, "phMix", "Ph.Mix" },
-        { Ctl::Toggle, "dlyOn", "Delay" }, { Ctl::Knob, "dlyTime", "Time" }, { Ctl::Knob, "dlyFb", "FB" }, { Ctl::Knob, "dlyTone", "D.Tone" }, { Ctl::Knob, "dlyMix", "D.Mix" },
-        { Ctl::Toggle, "rvOn", "Reverb" }, { Ctl::Knob, "rvSize", "Size" }, { Ctl::Knob, "rvDamp", "Damp" }, { Ctl::Knob, "rvMix", "R.Mix" },
-    }));
-
-    auto tabBg = juce::Colour (0xff17181b);
-    tabs.addTab ("AMP",     tabBg, ampPage, false);
-    tabs.addTab ("PEDAIS",  tabBg, pedPage, false);
-    tabs.addTab ("CAB / EQ", tabBg, cabPage, false);
-    tabs.addTab ("EFEITOS", tabBg, fxPage, false);
-    addAndMakeVisible (tabs);
+    struct Mod { const char* name; std::vector<Ctl> ctls; bool amp; };
+    std::vector<Mod> mods = {
+        { "GATE",   {{Ctl::Toggle,"gateOn","On"},{Ctl::Knob,"gateThr","Thresh"},{Ctl::Knob,"gateRel","Release"}}, false },
+        { "COMP",   {{Ctl::Toggle,"compOn","On"},{Ctl::Knob,"compThr","Thresh"},{Ctl::Knob,"compRatio","Ratio"},{Ctl::Knob,"compMakeup","Makeup"}}, false },
+        { "FUZZ",   {{Ctl::Toggle,"fzOn","On"},{Ctl::Knob,"fzSustain","Sustain"},{Ctl::Knob,"fzTone","Tone"},{Ctl::Knob,"fzLevel","Level"}}, false },
+        { "DRIVE",  {{Ctl::Toggle,"odOn","On"},{Ctl::Knob,"odDrive","Drive"},{Ctl::Knob,"odTone","Tone"},{Ctl::Knob,"odLevel","Level"}}, false },
+        { "AMP",    {{Ctl::Combo,"model","Amp"},{Ctl::Knob,"channel","Canal"},{Ctl::Toggle,"bright","Bright"},{Ctl::Knob,"gain","Gain"},{Ctl::Knob,"bass","Bass"},{Ctl::Knob,"mid","Mid"},{Ctl::Knob,"treble","Treble"},{Ctl::Knob,"presence","Presence"},{Ctl::Knob,"depth","Depth"},{Ctl::Knob,"master","Master"},{Ctl::Knob,"output","Output"}}, true },
+        { "EQ",     {{Ctl::Toggle,"eqOn","On"},{Ctl::Knob,"eqLow","Low"},{Ctl::Knob,"eqMid","Mid"},{Ctl::Knob,"eqHigh","High"},{Ctl::Knob,"eqMidFreq","Freq"},{Ctl::Knob,"eqMidQ","Q"},{Ctl::Knob,"eqHP","HP"},{Ctl::Knob,"eqLP","LP"}}, false },
+        { "CAB",    {{Ctl::Toggle,"cabOn","On"},{Ctl::Combo,"cab","Caixa"},{Ctl::Combo,"speaker","Falante"},{Ctl::Combo,"mic","Mic"},{Ctl::Knob,"axis","Axis"},{Ctl::Knob,"distance","Dist"}}, false },
+        { "CHORUS", {{Ctl::Toggle,"choOn","On"},{Ctl::Knob,"choRate","Rate"},{Ctl::Knob,"choDepth","Depth"},{Ctl::Knob,"choMix","Mix"}}, false },
+        { "PHASER", {{Ctl::Toggle,"phOn","On"},{Ctl::Knob,"phRate","Rate"},{Ctl::Knob,"phDepth","Depth"},{Ctl::Knob,"phFb","FB"},{Ctl::Knob,"phMix","Mix"}}, false },
+        { "DELAY",  {{Ctl::Toggle,"dlyOn","On"},{Ctl::Knob,"dlyTime","Time"},{Ctl::Knob,"dlyFb","FB"},{Ctl::Knob,"dlyTone","Tone"},{Ctl::Knob,"dlyMix","Mix"}}, false },
+        { "REVERB", {{Ctl::Toggle,"rvOn","On"},{Ctl::Knob,"rvSize","Size"},{Ctl::Knob,"rvDamp","Damp"},{Ctl::Knob,"rvMix","Mix"}}, false },
+    };
+    for (int i = 0; i < (int) mods.size(); ++i)
+    {
+        auto* pg = pages.add (new GrdPage (proc.apvts, mods[i].ctls, mods[i].amp));
+        addChildComponent (pg);
+        auto* ch = chips.add (new juce::TextButton (mods[i].name));
+        ch->setClickingTogglesState (true); ch->setRadioGroupId (100);
+        ch->setColour (juce::TextButton::textColourOnId,  lnf.accent);
+        ch->setColour (juce::TextButton::textColourOffId, juce::Colour (0xff8b8a83));
+        ch->onClick = [this, i] { showPage (i); };
+        addAndMakeVisible (ch);
+    }
 
     setResizable (true, true);
-    setResizeLimits (620, 380, 1400, 900);
-    setSize (840, 560);
+    setResizeLimits (640, 380, 1400, 900);
+    setSize (860, 560);
+    showPage (4);   // abre no AMP (como a web)
     startTimerHz (30);
+}
+
+void GuitarRigDSPAudioProcessorEditor::showPage (int idx)
+{
+    current = idx;
+    for (int i = 0; i < pages.size(); ++i) pages[i]->setVisible (i == idx);
+    if (idx < chips.size()) chips[idx]->setToggleState (true, juce::dontSendNotification);
 }
 
 void GuitarRigDSPAudioProcessorEditor::timerCallback()
@@ -204,7 +217,7 @@ void GuitarRigDSPAudioProcessorEditor::timerCallback()
     repaint (getWidth() - 230, 0, 230, 38);
 
     if (auto* ch = dynamic_cast<juce::AudioParameterChoice*> (proc.apvts.getParameter ("model")))
-        if (ch->getIndex() != lastModel) { lastModel = ch->getIndex(); if (! pages.isEmpty()) pages[0]->repaint(); }
+        if (ch->getIndex() != lastModel) { lastModel = ch->getIndex(); if (pages.size() > 4) pages[4]->repaint(); }
 }
 
 GuitarRigDSPAudioProcessorEditor::~GuitarRigDSPAudioProcessorEditor()
@@ -239,6 +252,10 @@ void GuitarRigDSPAudioProcessorEditor::paint (juce::Graphics& g)
 void GuitarRigDSPAudioProcessorEditor::resized()
 {
     auto r = getLocalBounds();
-    r.removeFromTop (38);
-    tabs.setBounds (r.reduced (6));
+    r.removeFromTop (40);
+    auto rail = r.removeFromLeft (140);
+    int y = rail.getY() + 6;
+    for (auto* ch : chips) { ch->setBounds (rail.getX() + 10, y, rail.getWidth() - 18, 34); y += 40; }
+    auto content = r.reduced (6);
+    for (auto* pg : pages) pg->setBounds (content);
 }
