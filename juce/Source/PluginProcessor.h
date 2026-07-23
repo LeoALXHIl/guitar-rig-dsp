@@ -97,11 +97,11 @@ private:
     // estado por canal (à taxa 4×)
     struct Ch
     {
-        double miller[3] = {0,0,0};
+        double miller[4] = {0,0,0,0};
         OnePole dc, cpl0, cpl1, xfmrHP;
         Biquad bassF, midF, trebF, presF, depthF, xfmrRes;
         double sagEnv = 0;
-        void reset() { miller[0]=miller[1]=miller[2]=0; dc.reset(); cpl0.reset(); cpl1.reset(); xfmrHP.reset();
+        void reset() { miller[0]=miller[1]=miller[2]=miller[3]=0; dc.reset(); cpl0.reset(); cpl1.reset(); xfmrHP.reset();
                        bassF.reset(); midF.reset(); trebF.reset(); presF.reset(); depthF.reset(); xfmrRes.reset(); sagEnv=0; }
     };
     std::vector<Ch> chans;
@@ -122,6 +122,9 @@ private:
     std::atomic<float>* pDepth = nullptr;
     std::atomic<float>* pMaster = nullptr;
     std::atomic<float>* pOutput = nullptr;
+    std::atomic<float>* pModel = nullptr;    // 0=800 1=5150 2=Twin 3=Recto
+    std::atomic<float>* pChannel = nullptr;  // 0..2 (depende do amp)
+    std::atomic<float>* pBright = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarRigDSPAudioProcessor)
 };

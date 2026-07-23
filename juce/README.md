@@ -4,8 +4,9 @@ Plugin **VST3 + Standalone** que porta o preamp do amp **800-style (JCM800 2203)
 guitar-rig-dsp web pra C++/JUCE. É o primeiro passo pra ter o rig rodando dentro de um DAW
 (Reaper, Ableton, Logic…) com latência nativa — o formato que dá pra **vender**.
 
-> **Escopo do MVP:** 1 amp (800-style), 4× oversampling, tone stack + presence/depth +
-> power amp com sag. UI = editor genérico do JUCE (sliders automáticos). Os outros amps,
+> **Escopo do MVP:** os **4 amps** (800 / 5150 / Twin / Rectifier) com canais, Bright, 4×
+> oversampling, tone stack + presence/depth + power amp com sag. Selecione o amp no parâmetro
+> **Amp** e o canal em **Channel**. UI = editor genérico do JUCE (sliders automáticos). Os
 > pedais e a UI bonita entram nas próximas etapas — a matemática já está toda no projeto web.
 
 ## Pré-requisitos (Windows)
@@ -33,7 +34,7 @@ A 1ª vez demora (baixa e compila o JUCE). Saídas:
 verificadas no harness Node. O oversampling usa `juce::dsp::Oversampling` (4×).
 
 ## Próximos passos
-1. Portar os outros 3 amps (5150 / Twin / Rectifier) — só copiar os `VOICES` do JS.
+1. ~~Portar os 4 amps~~ ✅ feito (VOICES completos + canais + Bright).
 2. Portar os pedais (overdrive, fuzz, delay, reverb, chorus, phaser).
 3. Cabinet: trocar o IR sintético por convolução (`juce::dsp::Convolution`) + carregar `.wav`.
 4. UI própria (custom `AudioProcessorEditor`) no lugar do editor genérico.

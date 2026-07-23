@@ -1,16 +1,37 @@
 #include "PluginProcessor.h"
 
-// ── voz 800-style (JCM800 2203), idêntica ao VOICES[0] do amp-processor.js ──
-namespace v800
+// ── VOICES: idênticas ao amp-processor.js do web (4 amps + canais) ──
+namespace
 {
-    static const double stageGain[3][2] = { {1.5, 9}, {1.5, 11}, {1.2, 6} };
-    static const double bias[3]         = { 0.12, 0.08, 0.05 };
-    static const double millerHz[3]     = { 9000, 11000, 10000 };
-    static const double coupleHz[2]     = { 150, 60 };
-    static const double midHz = 560, midQ = 0.7, midRangeLo = -13, midRangeHi = 5;
-    static const double trebHz = 3000, bassHz = 100;
-    static const double powerGain[2] = { 0.4, 4.5 };
-    static const double sag = 0.6, xfmrResHz = 95, xfmrResGain = 3;
+    struct Channel { double gainMul; int stages; };
+    struct Voice
+    {
+        double stageGain[4][2];
+        double bias[4];
+        double millerHz[4];
+        double millerBrightHz;
+        double coupleHz[2];
+        double coupleBrightHz;
+        double midHz, midQ, midRangeLo, midRangeHi, trebHz, bassHz;
+        double powerGain[2], sag, xfmrResHz, xfmrResGain;
+        int numChannels;
+        Channel channels[3];
+    };
+
+    const Voice VOICES[4] = {
+        // 0 — 800-style (JCM800 2203)
+        { {{1.5,9},{1.5,11},{1.2,6},{1.2,6}}, {0.12,0.08,0.05,0.05}, {9000,11000,10000,10000}, 15000,
+          {150,60}, 260, 560,0.7,-13,5, 3000,100, {0.4,4.5},0.6,95,3, 1, {{1.0,3},{1.0,3},{1.0,3}} },
+        // 1 — 5150-style (EVH 5150III)
+        { {{2,12},{2,13},{1.6,9},{1.3,6}}, {0.14,0.10,0.06,0.04}, {6000,7000,6000,6000}, 9000,
+          {220,120}, 340, 650,0.8,-16,3, 3200,90, {0.4,4.0},0.35,85,4, 3, {{0.20,2},{0.52,3},{1.0,4}} },
+        // 2 — Clean US (Twin)
+        { {{1.2,3.6},{1.0,2.6},{1.0,2.0},{1.0,2.0}}, {0.06,0.04,0.03,0.03}, {12000,12000,12000,12000}, 16000,
+          {80,40}, 180, 500,0.7,-10,3, 4000,90, {0.3,3.0},0.15,100,2, 1, {{1.0,2},{1.0,2},{1.0,2}} },
+        // 3 — Rectifier-style Modern
+        { {{2.2,14},{2.2,15},{1.8,11},{1.5,8}}, {0.16,0.11,0.07,0.05}, {5000,5500,5000,5000}, 8000,
+          {180,100}, 300, 700,0.9,-18,2, 3500,85, {0.4,4.2},0.5,80,4, 2, {{0.72,3},{1.0,4},{1.0,4}} },
+    };
 }
 
 GuitarRigDSPAudioProcessor::GuitarRigDSPAudioProcessor()
@@ -27,21 +48,30 @@ GuitarRigDSPAudioProcessor::GuitarRigDSPAudioProcessor()
     pDepth    = apvts.getRawParameterValue ("depth");
     pMaster   = apvts.getRawParameterValue ("master");
     pOutput   = apvts.getRawParameterValue ("output");
+    pModel    = apvts.getRawParameterValue ("model");
+    pChannel  = apvts.getRawParameterValue ("channel");
+    pBright   = apvts.getRawParameterValue ("bright");
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout GuitarRigDSPAudioProcessor::createLayout()
 {
-    using P = juce::AudioParameterFloat;
+    using PF = juce::AudioParameterFloat;
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     auto range = juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f);
-    layout.add (std::make_unique<P> (juce::ParameterID{"gain",1},     "Preamp",   range, 0.7f));
-    layout.add (std::make_unique<P> (juce::ParameterID{"bass",1},     "Bass",     range, 0.5f));
-    layout.add (std::make_unique<P> (juce::ParameterID{"mid",1},      "Middle",   range, 0.55f));
-    layout.add (std::make_unique<P> (juce::ParameterID{"treble",1},   "Treble",   range, 0.6f));
-    layout.add (std::make_unique<P> (juce::ParameterID{"presence",1}, "Presence", range, 0.45f));
-    layout.add (std::make_unique<P> (juce::ParameterID{"depth",1},    "Depth",    range, 0.35f));
-    layout.add (std::make_unique<P> (juce::ParameterID{"master",1},   "Master",   range, 0.6f));
-    layout.add (std::make_unique<P> (juce::ParameterID{"output",1},   "Output",   range, 0.7f));
+
+    layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID{"model",1}, "Amp",
+        juce::StringArray { "800-style", "5150-style", "Clean US (Twin)", "Rectifier" }, 0));
+    layout.add (std::make_unique<juce::AudioParameterInt> (juce::ParameterID{"channel",1}, "Channel", 0, 2, 0));
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"bright",1}, "Bright", true));
+
+    layout.add (std::make_unique<PF> (juce::ParameterID{"gain",1},     "Gain",     range, 0.7f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"bass",1},     "Bass",     range, 0.5f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"mid",1},      "Mid",      range, 0.55f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"treble",1},   "Treble",   range, 0.6f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"presence",1}, "Presence", range, 0.45f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"depth",1},    "Depth/Resonance", range, 0.35f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"master",1},   "Master",   range, 0.6f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"output",1},   "Output",   range, 0.7f));
     return layout;
 }
 
@@ -78,28 +108,40 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const int totalIn = getTotalNumInputChannels(), totalOut = getTotalNumOutputChannels();
     for (int ch = totalIn; ch < totalOut; ++ch) buffer.clear (ch, 0, buffer.getNumSamples());
 
-    const float gainT   = pGain ? pGain->load() : 0.6f;
+    // ── seleção de amp + canal ──
+    int model = pModel ? (int) std::lround (pModel->load()) : 0;
+    model = juce::jlimit (0, 3, model);
+    const Voice& V = VOICES[model];
+    int chIdx = pChannel ? (int) std::lround (pChannel->load()) : 0;
+    chIdx = juce::jlimit (0, V.numChannels - 1, chIdx);
+    const Channel& CHN = V.channels[chIdx];
+    const int nStages = CHN.stages;
+    const bool bright = pBright ? (pBright->load() > 0.5f) : true;
+
+    const float gainT   = (pGain ? pGain->load() : 0.6f) * (float) CHN.gainMul;
     const float masterT = pMaster ? pMaster->load() : 0.6f;
     const float bass = pBass->load(), mid = pMid->load(), treble = pTreble->load();
     const float pres = pPresence->load(), depth = pDepth->load();
     const float outGain = pOutput ? pOutput->load() : 0.7f;
 
     // coeficientes fixos por bloco (à taxa 4×)
-    const double aM[3] = { lpCoef (v800::millerHz[0], fsOS), lpCoef (v800::millerHz[1], fsOS), lpCoef (v800::millerHz[2], fsOS) };
-    const double Rc0 = hpCoef (v800::coupleHz[0], fsOS), Rc1 = hpCoef (v800::coupleHz[1], fsOS);
+    double aM[4];
+    for (int st = 0; st < 4; ++st)
+        aM[st] = lpCoef ((st == 0 && bright) ? V.millerBrightHz : V.millerHz[st], fsOS);
+    const double Rc0 = hpCoef (bright ? V.coupleBrightHz : V.coupleHz[0], fsOS);
+    const double Rc1 = hpCoef (V.coupleHz[1], fsOS);
     const double inHP = hpCoef (30.0, fsOS), xfmrHPr = hpCoef (24.0, fsOS);
     const double sagRelease = std::exp (-1.0 / (0.06 * fsOS));
     const double smile = (bass + treble) / 2.0;
 
-    // tone stack / presence / depth por canal (recalcula por bloco)
     for (auto& c : chans)
     {
-        c.bassF.lowShelf  (fsOS, v800::bassHz, lerp (-14, 8, bass));
-        c.trebF.highShelf (fsOS, v800::trebHz, lerp (-8, 12, treble));
-        c.midF.peaking    (fsOS, v800::midHz, v800::midQ, lerp (v800::midRangeLo, v800::midRangeHi, mid) - smile*3);
+        c.bassF.lowShelf  (fsOS, V.bassHz, lerp (-14, 8, bass));
+        c.trebF.highShelf (fsOS, V.trebHz, lerp (-8, 12, treble));
+        c.midF.peaking    (fsOS, V.midHz, V.midQ, lerp (V.midRangeLo, V.midRangeHi, mid) - smile*3);
         c.presF.highShelf (fsOS, 2200.0, lerp (0, 10, pres));
         c.depthF.lowShelf (fsOS, 110.0, lerp (0, 9, depth));
-        c.xfmrRes.peaking (fsOS, v800::xfmrResHz, 1.1, v800::xfmrResGain);
+        c.xfmrRes.peaking (fsOS, V.xfmrResHz, 1.1, V.xfmrResGain);
     }
 
     juce::dsp::AudioBlock<float> block (buffer);
@@ -109,23 +151,20 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     for (int i = 0; i < nS; ++i)
     {
-        // suaviza escalares uma vez por sample (compartilhado entre canais)
         sGain   += smA * (gainT - sGain);
         sMaster += smA * (masterT - sMaster);
-        const double g0 = lerp (v800::stageGain[0][0], v800::stageGain[0][1], sGain);
-        const double g1 = lerp (v800::stageGain[1][0], v800::stageGain[1][1], sGain);
-        const double g2 = lerp (v800::stageGain[2][0], v800::stageGain[2][1], sGain);
-        const double gs[3] = { g0, g1, g2 };
-        const double pGainAmp = lerp (v800::powerGain[0], v800::powerGain[1], sMaster);
+        double gs[4];
+        for (int st = 0; st < 4; ++st) gs[st] = lerp (V.stageGain[st][0], V.stageGain[st][1], sGain);
+        const double pGainAmp = lerp (V.powerGain[0], V.powerGain[1], sMaster);
 
         for (int ch = 0; ch < nCh; ++ch)
         {
             float* d = up.getChannelPointer ((size_t) ch);
             Ch& c = chans[(size_t) ch];
             double s = highpass (d[i], c.dc, inHP);
-            for (int st = 0; st < 3; ++st)
+            for (int st = 0; st < nStages; ++st)
             {
-                s = triode (s, gs[st], v800::bias[st]);
+                s = triode (s, gs[st], V.bias[st]);
                 c.miller[st] += aM[st] * (s - c.miller[st]); s = c.miller[st];
                 if (st < 2) s = highpass (s, st == 0 ? c.cpl0 : c.cpl1, st == 0 ? Rc0 : Rc1);
             }
@@ -133,7 +172,7 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             s = c.presF.process (s); s = c.depthF.process (s);
             double mag = s < 0 ? -s : s;
             c.sagEnv = mag > c.sagEnv ? mag : c.sagEnv * sagRelease;
-            double sag = 1.0 / (1.0 + v800::sag * c.sagEnv);
+            double sag = 1.0 / (1.0 + V.sag * c.sagEnv);
             s = std::tanh (pGainAmp * sag * s);
             s = highpass (s, c.xfmrHP, xfmrHPr);
             s = c.xfmrRes.process (s);
@@ -157,7 +196,6 @@ void GuitarRigDSPAudioProcessor::setStateInformation (const void* data, int size
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
 }
 
-// fábrica do plugin (exigida pelo JUCE)
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new GuitarRigDSPAudioProcessor();
