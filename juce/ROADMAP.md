@@ -8,20 +8,20 @@ Marque `[x]` conforme concluir. Cada sprint é uma entrega pequena e testável.
 ---
 
 ## FASE 1 — Paridade de som (motor completo em C++)  [1–15]
-- [ ] 1. Portar o **cabinet** (res. caixa + corpo do falante + quebra de cone + mic + rolloff + comb) pós power amp
-- [ ] 2. Cabinet: seletor de **caixa** (4x12 / 2x12 / 1x12)
-- [ ] 3. Cabinet: seletor de **falante** (V30 / Greenback / Creamback)
-- [ ] 4. Cabinet: **mic A + mic B** (dual-mic) com seleção (SM57 / MD421 / R121)
-- [ ] 5. Cabinet: **axis / distance / blend / spread** (imagem estéreo)
-- [ ] 6. **Loader de IR real (.wav)** via `juce::dsp::Convolution` (alternativa ao sintético)
-- [ ] 7. Portar **Overdrive** (tube screamer)
-- [ ] 8. Portar **Fuzz** (Big Muff)
-- [ ] 9. Portar **Noise Gate**
-- [ ] 10. Portar **Compressor**
-- [ ] 11. Portar **EQ paramétrico** (pós-cab)
-- [ ] 12. Portar **Delay** (estéreo)
-- [ ] 13. Portar **Reverb** (Freeverb)
-- [ ] 14. Portar **Chorus + Phaser**
+- [x] 1. Portar o **cabinet** (res. caixa + corpo do falante + quebra de cone + mic + rolloff + comb) pós power amp
+- [x] 2. Cabinet: seletor de **caixa** (4x12 / 2x12 / 1x12)
+- [x] 3. Cabinet: seletor de **falante** (V30 / Greenback / Creamback)
+- [x] 4. Cabinet: **mic A + mic B** (dual-mic) com seleção (SM57 / MD421 / R121)
+- [x] 5. Cabinet: **axis / distance / blend / spread** (imagem estéreo)
+- [x] 6. **Loader de IR real (.wav)** via `juce::dsp::Convolution` (alternativa ao sintético)
+- [x] 7. Portar **Overdrive** (tube screamer)
+- [x] 8. Portar **Fuzz** (Big Muff)
+- [x] 9. Portar **Noise Gate**
+- [x] 10. Portar **Compressor**
+- [x] 11. Portar **EQ paramétrico** (pós-cab)
+- [x] 12. Portar **Delay** (estéreo)
+- [x] 13. Portar **Reverb** (Freeverb)
+- [x] 14. Portar **Chorus + Phaser**
 - [ ] 15. **Cadeia reordenável** (roteamento) + bypass por bloco
 
 ## FASE 2 — Calibração de tom ("soa real")  [16–25]
