@@ -23,28 +23,46 @@ GrdLookAndFeel::GrdLookAndFeel()
 void GrdLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h,
                                        float pos, float a0, float a1, juce::Slider&)
 {
-    auto b = juce::Rectangle<float> ((float) x, (float) y, (float) w, (float) h).reduced (6.0f);
+    auto b = juce::Rectangle<float> ((float) x, (float) y, (float) w, (float) h).reduced (5.0f);
     auto cx = b.getCentreX(), cy = b.getCentreY();
     auto r = juce::jmin (b.getWidth(), b.getHeight()) * 0.5f;
     auto ang = a0 + pos * (a1 - a0);
 
-    // trilha
-    juce::Path track; track.addCentredArc (cx, cy, r, r, 0.0f, a0, a1, true);
-    g.setColour (juce::Colour (0xff2a2b30)); g.strokePath (track, juce::PathStrokeType (3.0f));
-    // arco de valor (accent) + glow
-    juce::Path val; val.addCentredArc (cx, cy, r, r, 0.0f, a0, ang, true);
-    g.setColour (accent.withAlpha (0.30f)); g.strokePath (val, juce::PathStrokeType (6.0f));
-    g.setColour (accent);                    g.strokePath (val, juce::PathStrokeType (3.0f));
-    // corpo do knob
-    auto kr = r * 0.66f;
-    juce::ColourGradient grad (juce::Colour (0xff3a3d44), cx, cy - kr, juce::Colour (0xff1b1c20), cx, cy + kr, false);
-    g.setGradientFill (grad); g.fillEllipse (cx - kr, cy - kr, kr * 2, kr * 2);
-    g.setColour (juce::Colour (0xff0c0c0e)); g.drawEllipse (cx - kr, cy - kr, kr * 2, kr * 2, 1.5f);
-    // ponteiro
-    juce::Point<float> tip (cx + std::cos (ang - juce::MathConstants<float>::halfPi) * kr * 0.9f,
-                            cy + std::sin (ang - juce::MathConstants<float>::halfPi) * kr * 0.9f);
+    // ticks ao redor
+    g.setColour (juce::Colour (0xff3a3b41));
+    for (int i = 0; i <= 10; ++i)
+    {
+        float ta = a0 + (float) i / 10.0f * (a1 - a0);
+        float c = std::cos (ta - juce::MathConstants<float>::halfPi), s = std::sin (ta - juce::MathConstants<float>::halfPi);
+        g.drawLine (cx + c * (r - 1), cy + s * (r - 1), cx + c * (r + 3), cy + s * (r + 3), 1.4f);
+    }
+    // trilha + arco de valor com glow
+    float tr = r - 3.0f;
+    juce::Path track; track.addCentredArc (cx, cy, tr, tr, 0.0f, a0, a1, true);
+    g.setColour (juce::Colour (0xff2a2b30)); g.strokePath (track, juce::PathStrokeType (3.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    juce::Path val; val.addCentredArc (cx, cy, tr, tr, 0.0f, a0, ang, true);
+    g.setColour (accent.withAlpha (0.28f)); g.strokePath (val, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour (accent);                    g.strokePath (val, juce::PathStrokeType (3.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // sombra sob o knob
+    auto kr = r * 0.62f;
+    g.setColour (juce::Colours::black.withAlpha (0.45f));
+    g.fillEllipse (cx - kr, cy - kr + 2.0f, kr * 2, kr * 2);
+    // corpo metálico (gradiente radial + bevel)
+    juce::ColourGradient body (juce::Colour (0xff4a4d55), cx - kr * 0.4f, cy - kr * 0.7f, juce::Colour (0xff151619), cx, cy + kr, true);
+    body.addColour (0.55, juce::Colour (0xff2c2e34));
+    g.setGradientFill (body); g.fillEllipse (cx - kr, cy - kr, kr * 2, kr * 2);
+    // aro
+    g.setColour (juce::Colour (0xff0b0b0d)); g.drawEllipse (cx - kr, cy - kr, kr * 2, kr * 2, 1.5f);
+    g.setColour (juce::Colours::white.withAlpha (0.10f)); g.drawEllipse (cx - kr + 1.5f, cy - kr + 1.5f, kr * 2 - 3, kr * 2 - 3, 1.0f);
+    // specular
+    g.setColour (juce::Colours::white.withAlpha (0.12f));
+    g.fillEllipse (cx - kr * 0.5f, cy - kr * 0.75f, kr * 0.7f, kr * 0.45f);
+    // ponteiro (linha accent + ponta)
+    float c2 = std::cos (ang - juce::MathConstants<float>::halfPi), s2 = std::sin (ang - juce::MathConstants<float>::halfPi);
     g.setColour (accent);
-    g.drawLine (cx, cy, tip.x, tip.y, 2.5f);
+    g.drawLine (cx + c2 * kr * 0.35f, cy + s2 * kr * 0.35f, cx + c2 * kr * 0.92f, cy + s2 * kr * 0.92f, 2.6f);
+    g.fillEllipse (cx + c2 * kr * 0.92f - 2.2f, cy + s2 * kr * 0.92f - 2.2f, 4.4f, 4.4f);
 }
 
 void GrdLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool, bool)
@@ -126,8 +144,10 @@ GrdPage::GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls, 
 void GrdPage::paint (juce::Graphics& g)
 {
     auto panel = getLocalBounds().toFloat().reduced (6.0f);
-    g.setColour (juce::Colour (0xff141518)); g.fillRoundedRectangle (panel, 12.0f);
-    g.setColour (juce::Colour (0xff2a2b30)); g.drawRoundedRectangle (panel, 12.0f, 1.0f);
+    juce::ColourGradient pg (juce::Colour (0xff1d1e22), panel.getX(), panel.getY(), juce::Colour (0xff0f1012), panel.getX(), panel.getBottom(), false);
+    g.setGradientFill (pg); g.fillRoundedRectangle (panel, 12.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.06f)); g.drawRoundedRectangle (panel.reduced (0.5f), 12.0f, 1.0f);   // brilho de topo
+    g.setColour (juce::Colour (0xff000000).withAlpha (0.5f)); g.drawRoundedRectangle (panel, 12.0f, 1.0f);
     if (! isAmp) return;
     int m = 0;
     if (auto* ch = dynamic_cast<juce::AudioParameterChoice*> (state.getParameter ("model"))) m = ch->getIndex();
