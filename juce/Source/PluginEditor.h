@@ -32,18 +32,21 @@ struct GrdPage : public juce::Component
     std::vector<juce::Component*> cells;  // na ordem, pra layout
 };
 
-class GuitarRigDSPAudioProcessorEditor : public juce::AudioProcessorEditor
+class GuitarRigDSPAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                         private juce::Timer
 {
 public:
     explicit GuitarRigDSPAudioProcessorEditor (GuitarRigDSPAudioProcessor&);
     ~GuitarRigDSPAudioProcessorEditor() override;
     void paint (juce::Graphics&) override;
     void resized() override;
+    void timerCallback() override;
 
 private:
     GuitarRigDSPAudioProcessor& proc;
     GrdLookAndFeel lnf;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::OwnedArray<GrdPage> pages;
+    float meterDisp = 0.0f, meterPeak = 0.0f; int peakHold = 0;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarRigDSPAudioProcessorEditor)
 };

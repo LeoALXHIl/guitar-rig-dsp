@@ -143,6 +143,16 @@ GuitarRigDSPAudioProcessorEditor::GuitarRigDSPAudioProcessorEditor (GuitarRigDSP
     setResizable (true, true);
     setResizeLimits (620, 380, 1400, 900);
     setSize (760, 480);
+    startTimerHz (30);
+}
+
+void GuitarRigDSPAudioProcessorEditor::timerCallback()
+{
+    float lv = proc.outLevel.load();
+    meterDisp = lv > meterDisp ? lv : meterDisp * 0.85f;         // ataque rápido, release lento
+    if (lv >= meterPeak) { meterPeak = lv; peakHold = 30; }
+    else if (--peakHold <= 0) meterPeak *= 0.93f;
+    repaint (getWidth() - 230, 0, 230, 38);
 }
 
 GuitarRigDSPAudioProcessorEditor::~GuitarRigDSPAudioProcessorEditor()
@@ -157,10 +167,21 @@ void GuitarRigDSPAudioProcessorEditor::paint (juce::Graphics& g)
     // faixa de título
     g.setColour (lnf.accent);
     g.setFont (juce::Font (17.0f, juce::Font::bold));
-    g.drawText ("GUITAR RIG DSP", 16, 8, getWidth() - 32, 26, juce::Justification::left);
-    g.setColour (juce::Colour (0xff6b6a63));
-    g.setFont (juce::Font (11.0f));
-    g.drawText ("NexTags", 16, 8, getWidth() - 32, 26, juce::Justification::right);
+    g.drawText ("GUITAR RIG DSP", 16, 8, getWidth() - 260, 26, juce::Justification::left);
+
+    // VU meter de saída
+    auto mb = juce::Rectangle<float> ((float) getWidth() - 178.0f, 14.0f, 150.0f, 11.0f);
+    g.setColour (juce::Colour (0xff09090a)); g.fillRoundedRectangle (mb, 3.0f);
+    float db = juce::Decibels::gainToDecibels (meterDisp, -60.0f);
+    float frac = juce::jlimit (0.0f, 1.0f, (db + 60.0f) / 60.0f);
+    juce::Colour mc = meterDisp > 0.98f ? juce::Colour (0xffe64a5a)
+                    : meterDisp > 0.70f ? juce::Colour (0xffe0a24a) : juce::Colour (0xff5fd47a);
+    g.setColour (mc); g.fillRoundedRectangle (mb.withWidth (mb.getWidth() * frac), 3.0f);
+    float pf = juce::jlimit (0.0f, 1.0f, (juce::Decibels::gainToDecibels (meterPeak, -60.0f) + 60.0f) / 60.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.8f));
+    g.fillRect (mb.getX() + mb.getWidth() * pf, mb.getY(), 2.0f, mb.getHeight());
+    g.setColour (juce::Colour (0xff6b6a63)); g.setFont (juce::Font (9.0f));
+    g.drawText ("OUT", (int) getWidth() - 26, 13, 24, 13, juce::Justification::left);
 }
 
 void GuitarRigDSPAudioProcessorEditor::resized()

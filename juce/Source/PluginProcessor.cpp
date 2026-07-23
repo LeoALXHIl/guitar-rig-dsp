@@ -509,6 +509,10 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             }
         }
     }
+
+    float pk = 0.0f;
+    for (int ch = 0; ch < totalOut; ++ch) { auto* rd = buffer.getReadPointer (ch); for (int i = 0; i < buffer.getNumSamples(); ++i) pk = juce::jmax (pk, std::abs (rd[i])); }
+    outLevel.store (pk);
 }
 
 void GuitarRigDSPAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
