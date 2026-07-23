@@ -8,7 +8,7 @@
 GrdLookAndFeel::GrdLookAndFeel()
 {
     setColour (juce::ResizableWindow::backgroundColourId, juce::Colour (0xff141416));
-    setColour (juce::Slider::textBoxTextColourId,        juce::Colour (0xffeceae4));
+    setColour (juce::Slider::textBoxTextColourId,        accent);
     setColour (juce::Slider::textBoxOutlineColourId,     juce::Colours::transparentBlack);
     setColour (juce::Label::textColourId,                juce::Colour (0xffbdbbb2));
     setColour (juce::ComboBox::backgroundColourId,       juce::Colour (0xff17181b));
@@ -47,6 +47,32 @@ void GrdLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, i
     g.drawLine (cx, cy, tip.x, tip.y, 2.5f);
 }
 
+void GrdLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool, bool)
+{
+    auto r = b.getLocalBounds().toFloat().reduced (2.0f);
+    bool on = b.getToggleState();
+    float rad = r.getHeight() * 0.5f;
+    g.setColour (on ? accent : juce::Colour (0xff2a2b30));
+    g.fillRoundedRectangle (r, rad);
+    if (on) { g.setColour (accent.withAlpha (0.35f)); g.drawRoundedRectangle (r.expanded (1.5f), rad + 1.5f, 3.0f); }
+    float d = r.getHeight() - 6.0f;
+    float kx = on ? r.getRight() - d - 3.0f : r.getX() + 3.0f;
+    g.setColour (juce::Colour (0xfff4f2ec));
+    g.fillEllipse (kx, r.getY() + 3.0f, d, d);
+}
+
+void GrdLookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox&)
+{
+    auto r = juce::Rectangle<float> (0, 0, (float) w, (float) h).reduced (1.0f);
+    g.setColour (juce::Colour (0xff101114)); g.fillRoundedRectangle (r, 6.0f);
+    g.setColour (juce::Colour (0xff33343a)); g.drawRoundedRectangle (r, 6.0f, 1.0f);
+    juce::Path p; float cx = w - 14.0f, cy = h * 0.5f;
+    p.addTriangle (cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3);
+    g.setColour (accent); g.fillPath (p);
+}
+
+juce::Font GrdLookAndFeel::getComboBoxFont (juce::ComboBox&) { return juce::Font (13.0f, juce::Font::bold); }
+
 // ============================== Page ==============================
 GrdPage::GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls, bool amp)
     : isAmp (amp), topPad (amp ? 50 : 14), state (s), controls (std::move (ctls))
@@ -55,7 +81,8 @@ GrdPage::GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls, 
     {
         auto* lbl = labels.add (new juce::Label ({}, c.name));
         lbl->setJustificationType (juce::Justification::centred);
-        lbl->setFont (juce::Font (12.0f, juce::Font::bold));
+        lbl->setFont (juce::Font (10.5f, juce::Font::bold));
+        lbl->setColour (juce::Label::textColourId, juce::Colour (0xff9a988f));
         addAndMakeVisible (lbl);
 
         if (c.type == Ctl::Knob)
@@ -87,6 +114,9 @@ GrdPage::GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls, 
 
 void GrdPage::paint (juce::Graphics& g)
 {
+    auto panel = getLocalBounds().toFloat().reduced (6.0f);
+    g.setColour (juce::Colour (0xff141518)); g.fillRoundedRectangle (panel, 12.0f);
+    g.setColour (juce::Colour (0xff2a2b30)); g.drawRoundedRectangle (panel, 12.0f, 1.0f);
     if (! isAmp) return;
     int m = 0;
     if (auto* ch = dynamic_cast<juce::AudioParameterChoice*> (state.getParameter ("model"))) m = ch->getIndex();
@@ -105,17 +135,18 @@ void GrdPage::paint (juce::Graphics& g)
 
 void GrdPage::resized()
 {
-    const int cellW = 116, cellH = 108, pad = 14;
+    const int cellW = 128, cellH = 122, pad = 20;
     int cols = juce::jmax (1, (getWidth() - pad) / cellW);
     for (size_t i = 0; i < cells.size(); ++i)
     {
         int col = (int) i % cols, row = (int) i / cols;
-        int x = pad + col * cellW, y = topPad + row * cellH;
-        labels[(int) i]->setBounds (x, y, cellW - 8, 16);
+        int x = pad + col * cellW, y = topPad + 6 + row * cellH;
+        int cw = cellW - 12;
+        labels[(int) i]->setBounds (x, y, cw, 15);
         auto* comp = cells[i];
-        if (auto* sl = dynamic_cast<juce::Slider*> (comp)) sl->setBounds (x, y + 16, cellW - 8, cellH - 24);
-        else if (auto* tg = dynamic_cast<juce::ToggleButton*> (comp)) tg->setBounds (x + (cellW - 8) / 2 - 12, y + 34, 30, 30);
-        else comp->setBounds (x, y + 40, cellW - 12, 26);   // combo
+        if (auto* sl = dynamic_cast<juce::Slider*> (comp)) sl->setBounds (x, y + 15, cw, cellH - 26);
+        else if (auto* tg = dynamic_cast<juce::ToggleButton*> (comp)) tg->setBounds (x + cw / 2 - 26, y + 40, 52, 26);
+        else comp->setBounds (x, y + 44, cw, 28);   // combo
     }
 }
 
@@ -160,7 +191,7 @@ GuitarRigDSPAudioProcessorEditor::GuitarRigDSPAudioProcessorEditor (GuitarRigDSP
 
     setResizable (true, true);
     setResizeLimits (620, 380, 1400, 900);
-    setSize (760, 480);
+    setSize (840, 560);
     startTimerHz (30);
 }
 

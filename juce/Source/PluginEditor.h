@@ -10,6 +10,9 @@ public:
     GrdLookAndFeel();
     void drawRotarySlider (juce::Graphics&, int x, int y, int w, int h,
                            float pos, float startAngle, float endAngle, juce::Slider&) override;
+    void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
+    void drawComboBox (juce::Graphics&, int w, int h, bool, int, int, int, int, juce::ComboBox&) override;
+    juce::Font getComboBoxFont (juce::ComboBox&) override;
     juce::Colour accent { 0xffe0a24a };
 };
 
