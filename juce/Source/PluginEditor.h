@@ -17,9 +17,11 @@ public:
 struct GrdPage : public juce::Component
 {
     struct Ctl { enum T { Knob, Toggle, Combo } type; const char* id; const char* name; };
-    GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls);
+    GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls, bool amp = false);
     void resized() override;
+    void paint (juce::Graphics&) override;
 
+    bool isAmp = false; int topPad = 14;
     juce::AudioProcessorValueTreeState& state;
     std::vector<Ctl> controls;
     juce::OwnedArray<juce::Slider> sliders;
@@ -47,6 +49,6 @@ private:
     GrdLookAndFeel lnf;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::OwnedArray<GrdPage> pages;
-    float meterDisp = 0.0f, meterPeak = 0.0f; int peakHold = 0;
+    float meterDisp = 0.0f, meterPeak = 0.0f; int peakHold = 0, lastModel = -1;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarRigDSPAudioProcessorEditor)
 };

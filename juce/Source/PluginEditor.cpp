@@ -48,8 +48,8 @@ void GrdLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, i
 }
 
 // ============================== Page ==============================
-GrdPage::GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls)
-    : state (s), controls (std::move (ctls))
+GrdPage::GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls, bool amp)
+    : isAmp (amp), topPad (amp ? 50 : 14), state (s), controls (std::move (ctls))
 {
     for (auto& c : controls)
     {
@@ -85,6 +85,24 @@ GrdPage::GrdPage (juce::AudioProcessorValueTreeState& s, std::vector<Ctl> ctls)
     }
 }
 
+void GrdPage::paint (juce::Graphics& g)
+{
+    if (! isAmp) return;
+    int m = 0;
+    if (auto* ch = dynamic_cast<juce::AudioParameterChoice*> (state.getParameter ("model"))) m = ch->getIndex();
+    static const char* names[4] = { "800-style · 2203", "5150-style · Lead", "Clean US · Twin", "Rectifier · Modern" };
+    const juce::Colour top[4] = { juce::Colour (0xffeccb70), juce::Colour (0xff33363c), juce::Colour (0xff5ab4e0), juce::Colour (0xffd4564a) };
+    const juce::Colour bot[4] = { juce::Colour (0xffa67f28), juce::Colour (0xff131417), juce::Colour (0xff1d5c7e), juce::Colour (0xff7a1c15) };
+    const bool dark = (m == 0 || m == 2);   // texto escuro sobre placa clara
+    auto band = juce::Rectangle<float> (10.0f, 8.0f, (float) getWidth() - 20.0f, 34.0f);
+    g.setGradientFill (juce::ColourGradient (top[m], 0, band.getY(), bot[m], 0, band.getBottom(), false));
+    g.fillRoundedRectangle (band, 6.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.65f)); g.drawRoundedRectangle (band, 6.0f, 1.5f);
+    g.setColour (dark ? juce::Colour (0xff241704) : juce::Colours::white);
+    g.setFont (juce::Font (15.0f, juce::Font::bold));
+    g.drawText (names[m], band.reduced (14.0f, 0.0f), juce::Justification::centredLeft);
+}
+
 void GrdPage::resized()
 {
     const int cellW = 116, cellH = 108, pad = 14;
@@ -92,7 +110,7 @@ void GrdPage::resized()
     for (size_t i = 0; i < cells.size(); ++i)
     {
         int col = (int) i % cols, row = (int) i / cols;
-        int x = pad + col * cellW, y = pad + row * cellH;
+        int x = pad + col * cellW, y = topPad + row * cellH;
         labels[(int) i]->setBounds (x, y, cellW - 8, 16);
         auto* comp = cells[i];
         if (auto* sl = dynamic_cast<juce::Slider*> (comp)) sl->setBounds (x, y + 16, cellW - 8, cellH - 24);
@@ -113,7 +131,7 @@ GuitarRigDSPAudioProcessorEditor::GuitarRigDSPAudioProcessorEditor (GuitarRigDSP
         { Ctl::Knob, "gain", "Gain" }, { Ctl::Knob, "bass", "Bass" }, { Ctl::Knob, "mid", "Mid" },
         { Ctl::Knob, "treble", "Treble" }, { Ctl::Knob, "presence", "Presence" }, { Ctl::Knob, "depth", "Depth" },
         { Ctl::Knob, "master", "Master" }, { Ctl::Knob, "output", "Output" },
-    }));
+    }, true));
     auto* pedPage = pages.add (new GrdPage (proc.apvts, {
         { Ctl::Toggle, "odOn", "OD" }, { Ctl::Knob, "odDrive", "Drive" }, { Ctl::Knob, "odTone", "Tone" }, { Ctl::Knob, "odLevel", "Level" },
         { Ctl::Toggle, "fzOn", "Fuzz" }, { Ctl::Knob, "fzSustain", "Sustain" }, { Ctl::Knob, "fzTone", "F.Tone" }, { Ctl::Knob, "fzLevel", "F.Level" },
@@ -153,6 +171,9 @@ void GuitarRigDSPAudioProcessorEditor::timerCallback()
     if (lv >= meterPeak) { meterPeak = lv; peakHold = 30; }
     else if (--peakHold <= 0) meterPeak *= 0.93f;
     repaint (getWidth() - 230, 0, 230, 38);
+
+    if (auto* ch = dynamic_cast<juce::AudioParameterChoice*> (proc.apvts.getParameter ("model")))
+        if (ch->getIndex() != lastModel) { lastModel = ch->getIndex(); if (! pages.isEmpty()) pages[0]->repaint(); }
 }
 
 GuitarRigDSPAudioProcessorEditor::~GuitarRigDSPAudioProcessorEditor()
