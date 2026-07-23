@@ -111,6 +111,9 @@ private:
         OnePole dc, cpl0, cpl1, xfmrHP;
         Biquad bassF, midF, trebF, presF, depthF, xfmrRes;
         double sagEnv = 0;
+        // pedais de sujeira (na região 4×, antes do amp)
+        double odLp = 0;                 // tone do overdrive
+        OnePole fzDc; double fzMid = 0, fzToneLp = 0;   // fuzz
         // cabinet (aplicado pós power amp, à taxa 4×) — porta do makeCabMicIR do web
         Biquad cHP, cRes, cBody, cPres, cLP, cShelf;
         Biquad cBreak[5]; int nBreak = 0;
@@ -118,6 +121,7 @@ private:
         double comb[2048] = {0}; int combW = 0;
         void reset() { miller[0]=miller[1]=miller[2]=miller[3]=0; dc.reset(); cpl0.reset(); cpl1.reset(); xfmrHP.reset();
                        bassF.reset(); midF.reset(); trebF.reset(); presF.reset(); depthF.reset(); xfmrRes.reset(); sagEnv=0;
+                       odLp=0; fzDc.reset(); fzMid=0; fzToneLp=0;
                        cHP.reset(); cRes.reset(); cBody.reset(); cPres.reset(); cLP.reset(); cShelf.reset();
                        for (auto& b : cBreak) b.reset(); for (auto& b : cMicPk) b.reset();
                        for (auto& x : comb) x = 0; combW = 0; }
@@ -149,6 +153,8 @@ private:
     std::atomic<float>* pMic = nullptr;       // 0=sm57 1=md421 2=r121
     std::atomic<float>* pAxis = nullptr;
     std::atomic<float>* pDistance = nullptr;
+    std::atomic<float>* pOdOn = nullptr;  std::atomic<float>* pOdDrive = nullptr; std::atomic<float>* pOdTone = nullptr; std::atomic<float>* pOdLevel = nullptr;
+    std::atomic<float>* pFzOn = nullptr;  std::atomic<float>* pFzSustain = nullptr; std::atomic<float>* pFzTone = nullptr; std::atomic<float>* pFzLevel = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarRigDSPAudioProcessor)
 };

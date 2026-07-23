@@ -73,6 +73,10 @@ GuitarRigDSPAudioProcessor::GuitarRigDSPAudioProcessor()
     pMic      = apvts.getRawParameterValue ("mic");
     pAxis     = apvts.getRawParameterValue ("axis");
     pDistance = apvts.getRawParameterValue ("distance");
+    pOdOn = apvts.getRawParameterValue ("odOn"); pOdDrive = apvts.getRawParameterValue ("odDrive");
+    pOdTone = apvts.getRawParameterValue ("odTone"); pOdLevel = apvts.getRawParameterValue ("odLevel");
+    pFzOn = apvts.getRawParameterValue ("fzOn"); pFzSustain = apvts.getRawParameterValue ("fzSustain");
+    pFzTone = apvts.getRawParameterValue ("fzTone"); pFzLevel = apvts.getRawParameterValue ("fzLevel");
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout GuitarRigDSPAudioProcessor::createLayout()
@@ -104,6 +108,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout GuitarRigDSPAudioProcessor::
         juce::StringArray { "SM57", "MD421", "R121" }, 0));
     layout.add (std::make_unique<PF> (juce::ParameterID{"axis",1},     "Mic Axis",     range, 0.25f));
     layout.add (std::make_unique<PF> (juce::ParameterID{"distance",1}, "Mic Distance", range, 0.30f));
+
+    // Overdrive (pré-amp)
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"odOn",1}, "OD On", false));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"odDrive",1}, "OD Drive", juce::NormalisableRange<float>(1.0f,100.0f,1.0f), 8.0f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"odTone",1},  "OD Tone",  range, 0.6f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"odLevel",1}, "OD Level", range, 0.5f));
+    // Fuzz (pré-amp)
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID{"fzOn",1}, "Fuzz On", false));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"fzSustain",1}, "Fuzz Sustain", range, 0.6f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"fzTone",1},    "Fuzz Tone",    range, 0.5f));
+    layout.add (std::make_unique<PF> (juce::ParameterID{"fzLevel",1},   "Fuzz Level",   range, 0.6f));
     return layout;
 }
 
@@ -202,6 +217,22 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             c.cLP.lowpass (fsOS, cabLPf, 0.8);
         }
 
+    // ── Overdrive / Fuzz (Sprints 7-8): coeficientes por bloco (à taxa 4×) ──
+    const bool odOn = pOdOn && pOdOn->load() > 0.5f;
+    const double odDrive = pOdDrive ? pOdDrive->load() : 8.0;
+    const double odTone  = pOdTone ? pOdTone->load() : 0.6;
+    const double odLevel = pOdLevel ? pOdLevel->load() : 0.5;
+    const double odBias = 0.18, odBiasComp = std::tanh (0.18);
+    const double odA = lpCoef (juce::jmin (700.0 * std::pow (10.0, odTone), fsOS * 0.45), fsOS);
+    const bool fzOn = pFzOn && pFzOn->load() > 0.5f;
+    const double fzSustain = pFzSustain ? pFzSustain->load() : 0.6;
+    const double fzTone  = pFzTone ? pFzTone->load() : 0.5;
+    const double fzLevel = pFzLevel ? pFzLevel->load() : 0.6;
+    const double fzDcR   = hpCoef (25.0, fsOS);
+    const double fzMidA  = lpCoef (6500.0, fsOS);
+    const double fzToneA = lpCoef (700.0 * std::pow (10.0, fzTone * 0.8), fsOS);
+    const double fzPre = 4.0 + fzSustain * 86.0, fzB = std::tanh (0.05);
+
     juce::dsp::AudioBlock<float> block (buffer);
     auto up = oversampling->processSamplesUp (block);
     const int nCh = juce::jmin ((int) up.getNumChannels(), (int) chans.size());
@@ -219,7 +250,23 @@ void GuitarRigDSPAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         {
             float* d = up.getChannelPointer ((size_t) ch);
             Ch& c = chans[(size_t) ch];
-            double s = highpass (d[i], c.dc, inHP);
+            double x0 = d[i];
+            if (odOn) {                                   // Overdrive (tube screamer)
+                double sd = std::tanh (x0 * odDrive + odBias) - odBiasComp;
+                c.odLp += odA * (sd - c.odLp); sd = c.odLp;
+                x0 = sd * odLevel;
+            }
+            if (fzOn) {                                   // Fuzz (Big Muff)
+                double f = highpass (x0, c.fzDc, fzDcR);
+                f = std::tanh (fzPre * f + 0.05) - fzB;
+                c.fzMid += fzMidA * (f - c.fzMid); f = c.fzMid;
+                f = std::tanh (1.8 * f);
+                c.fzToneLp += fzToneA * (f - c.fzToneLp);
+                double lp = c.fzToneLp, hp = f - c.fzToneLp;
+                f = lp * (1.0 - fzTone) + hp * fzTone;
+                x0 = f * (0.15 + fzLevel * 0.85);
+            }
+            double s = highpass (x0, c.dc, inHP);
             for (int st = 0; st < nStages; ++st)
             {
                 s = triode (s, gs[st], V.bias[st]);
