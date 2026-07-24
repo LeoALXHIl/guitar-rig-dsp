@@ -20,6 +20,7 @@ let delay = null, reverb = null; // pós-cab (tempo & espaço)
 let cabConvA = null, cabConvB = null, cabGainA = null, cabGainB = null, panA = null, panB = null, cabDry = null;
 let master = null, looper = null, drumBus = null, inAnalyser = null, outAnalyser = null;
 let monoNode = null, recDest = null, mediaRec = null, recChunks = []; // mono de saída + gravação
+let recProc = null, recSink = null, recL = null, recR = null, recording = false; // captura WAV (PCM)
 
 // config de áudio (aplicada ao (re)ligar o rig) — Sprint 4 #17
 const audioCfg = { sampleRate: 0, latencyHint: 'interactive', inputDeviceId: '' };
@@ -583,29 +584,43 @@ function applyMono() { if (!looper) return; looper.disconnect(); looper.connect(
 $('monoOut').addEventListener('change', () => { try { localStorage.setItem('grd-mono', $('monoOut').checked ? '1' : '0'); } catch {} if (running) applyMono(); });
 
 // ---- gravar o que está tocando → baixa um arquivo de áudio ----
+function flattenF32(arr) { let n = 0; for (const c of arr) n += c.length; const out = new Float32Array(n); let o = 0; for (const c of arr) { out.set(c, o); o += c.length; } return out; }
+function encodeWAV(L, R, sr) {                          // PCM 16-bit estéreo
+  const n = L.length, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 4, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 2, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 4, true);
+  v.setUint16(32, 4, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 4, true);
+  let o = 44; for (let i = 0; i < n; i++) { for (const c of [L, R]) { let s = Math.max(-1, Math.min(1, c[i])); v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); o += 2; } }
+  return new Blob([buf], { type: 'audio/wav' });
+}
 function toggleRecord() {
-  if (!running || !recDest) { toast('Ligue o rig primeiro pra gravar.'); return; }
-  if (mediaRec && mediaRec.state === 'recording') { mediaRec.stop(); return; }
-  recChunks = [];
-  const mime = (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) ? 'audio/webm;codecs=opus'
-             : (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm')) ? 'audio/webm' : '';
-  if (!window.MediaRecorder) { toast('Seu navegador não suporta gravação (use Chrome/Edge).'); return; }
-  try { mediaRec = mime ? new MediaRecorder(recDest.stream, { mimeType: mime }) : new MediaRecorder(recDest.stream); }
-  catch (e) { toast('Falha ao iniciar gravação: ' + e.message); return; }
-  mediaRec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
-  mediaRec.onstop = () => {
-    const type = mediaRec.mimeType || 'audio/webm';
-    const ext = type.indexOf('ogg') >= 0 ? 'ogg' : 'webm';
-    const blob = new Blob(recChunks, { type });
+  if (!running) { toast('Ligue o rig primeiro pra gravar.'); return; }
+  const b = $('recBtn');
+  if (recording) {
+    recording = false;
+    if (recProc) { recProc.disconnect(); recProc.onaudioprocess = null; recProc = null; }
+    if (recSink) { recSink.disconnect(); recSink = null; }
+    const blob = encodeWAV(flattenF32(recL), flattenF32(recR), ctx.sampleRate); recL = recR = null;
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = 'guitar-rig-' + Date.now() + '.' + ext; a.click();
+    a.download = 'guitar-rig-' + Date.now() + '.wav'; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    const b = $('recBtn'); if (b) { b.classList.remove('on'); b.textContent = '● Gravar'; }
-    toast('Gravação salva ✓ (' + ext.toUpperCase() + ')');
+    if (b) { b.classList.remove('on'); b.textContent = '● Gravar'; }
+    toast('Gravação salva ✓ (WAV)');
+    return;
+  }
+  recL = []; recR = [];
+  recProc = ctx.createScriptProcessor(4096, 2, 2);
+  recProc.onaudioprocess = (e) => {
+    const ib = e.inputBuffer;
+    recL.push(new Float32Array(ib.getChannelData(0)));
+    recR.push(new Float32Array(ib.getChannelData(ib.numberOfChannels > 1 ? 1 : 0)));
   };
-  mediaRec.start();
-  const b = $('recBtn'); if (b) { b.classList.add('on'); b.textContent = '■ Parar'; }
-  toast('Gravando… clique de novo pra parar e baixar.');
+  recSink = ctx.createGain(); recSink.gain.value = 0;
+  outAnalyser.connect(recProc); recProc.connect(recSink); recSink.connect(ctx.destination);
+  recording = true;
+  if (b) { b.classList.add('on'); b.textContent = '■ Parar'; }
+  toast('Gravando (WAV)… clique de novo pra parar e baixar.');
 }
 $('recBtn').addEventListener('click', toggleRecord);
 $('testOn').addEventListener('change', () => { if (running && testGain) testGain.gain.setTargetAtTime($('testOn').checked ? 0.25 : 0, ctx.currentTime, 0.02); });
@@ -1181,7 +1196,7 @@ document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', (e
 // ===========================================================================
 // Sprint 5 — PWA (#20): instalável + offline via service worker + auto-update
 // ===========================================================================
-const APP_VERSION = 'v0.28.0';
+const APP_VERSION = 'v0.29.0';
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then((reg) => {
     Log.info('service worker registrado (offline pronto)');
